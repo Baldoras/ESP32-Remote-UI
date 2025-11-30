@@ -1,7 +1,7 @@
 /**
  * GlobalUI.cpp
  * 
- * Implementation des globalen UI-Managers
+ * Implementation der zentralen UI-Verwaltung
  */
 
 #include "GlobalUI.h"
@@ -11,274 +11,210 @@ GlobalUI::GlobalUI()
     : ui(nullptr)
     , tft(nullptr)
     , battery(nullptr)
-    , lblHeaderTitle(nullptr)
-    , lblBatteryIcon(nullptr)
-    , btnBack(nullptr)
-    , lblFooter(nullptr)
-    , initialized(false)
+    , pageManager(nullptr)
+    , headerHeight(40)
+    , footerHeight(40)
+    , contentHeight(0)
+    , displayWidth(0)
+    , displayHeight(0)
+    , headerLabel(nullptr)
+    , backButton(nullptr)
+    , footerLabel(nullptr)
+    , batteryIconX(0)
+    , batteryIconY(0)
+    , batteryIconWidth(50)
+    , batteryIconHeight(20)
+    , backTargetPageId(0)
 {
 }
 
 GlobalUI::~GlobalUI() {
-    // Widgets werden vom UIManager verwaltet (Ownership dort)
+    // UI-Elemente werden vom UIManager aufgeräumt
 }
 
-bool GlobalUI::init(UIManager* uiMgr, TFT_eSPI* display, BatteryMonitor* batteryMon) {
-    if (!uiMgr || !display || !batteryMon) {
-        Serial.println("GlobalUI: ❌ Ungültige Parameter!");
+bool GlobalUI::init(UIManager* uiMgr, TFT_eSPI* display, BatteryMonitor* bat) {
+    if (!uiMgr || !display) {
+        DEBUG_PRINTLN("GlobalUI: ❌ ui oder tft ist nullptr!");
         return false;
     }
     
     ui = uiMgr;
     tft = display;
-    battery = batteryMon;
+    battery = bat;
     
-    Serial.println("GlobalUI: Initialisiere globale UI-Elemente...");
+    displayWidth = tft->width();
+    displayHeight = tft->height();
+    contentHeight = displayHeight - headerHeight - footerHeight;
     
-    // ═══════════════════════════════════════════════════════════════
-    // Header Hintergrund zeichnen
-    // ═══════════════════════════════════════════════════════════════
-    drawHeaderBackground();
+    DEBUG_PRINTLN("GlobalUI: Initialisiere...");
     
-    // ═══════════════════════════════════════════════════════════════
-    // Footer Hintergrund zeichnen
-    // ═══════════════════════════════════════════════════════════════
-    drawFooterBackground();
+    // ═══════════════════════════════════════════════════════════════════════
+    // Header-Elemente erstellen
+    // ═══════════════════════════════════════════════════════════════════════
     
-    // ═══════════════════════════════════════════════════════════════
-    // Zurück-Button erstellen (links im Header)
-    // ═══════════════════════════════════════════════════════════════
-    btnBack = new UIButton(5, 3, 60, 34, "<");  // Größer: 60x34px
-    btnBack->setVisible(false);  // Initial versteckt
-    ElementStyle backStyle;
-    backStyle.bgColor = COLOR_BLUE;
-    backStyle.borderColor = COLOR_WHITE;
-    backStyle.textColor = COLOR_WHITE;
-    backStyle.borderWidth = 2;
-    backStyle.cornerRadius = 5;
-    btnBack->setStyle(backStyle);
-    ui->add(btnBack);
+    // Header Label (Seitentitel - zentral)
+    headerLabel = new UILabel(0, 0, displayWidth, headerHeight, "Home");
+    headerLabel->setFontSize(2);
+    headerLabel->setAlignment(TextAlignment::CENTER);
+    headerLabel->setTransparent(false);
+    ElementStyle headerStyle;
+    headerStyle.bgColor = COLOR_DARKGRAY;
+    headerStyle.textColor = COLOR_WHITE;
+    headerStyle.borderWidth = 0;
+    headerStyle.cornerRadius = 0;
+    headerLabel->setStyle(headerStyle);
+    headerLabel->setVisible(true);
+    ui->add(headerLabel);
     
-    Serial.println("  ✅ Zurück-Button erstellt (versteckt)");
+    // Back-Button (rechts im Header, initial versteckt)
+    backButton = new UIButton(displayWidth - 110, 5, 50, 30, "<");
+    backButton->setVisible(false);  // Startet versteckt
+    backButton->on(EventType::CLICK, [this](EventData* data) {
+        if (pageManager) {
+            DEBUG_PRINTF("GlobalUI: Back-Button → Page %d\n", backTargetPageId);
+            pageManager->showPage(backTargetPageId);
+        }
+    });
+    ui->add(backButton);
     
-    // ═══════════════════════════════════════════════════════════════
-    // Seiten-Titel Label (zentriert im Header)
-    // ═══════════════════════════════════════════════════════════════
-    lblHeaderTitle = new UILabel(70, 5, 280, 30, "");  // X von 50 auf 70 (mehr Platz für Back-Button)
-    lblHeaderTitle->setFontSize(2);
-    lblHeaderTitle->setAlignment(TextAlignment::CENTER);
-    lblHeaderTitle->setTransparent(true);
-    ElementStyle titleStyle;
-    titleStyle.bgColor = COLOR_DARKGRAY;
-    titleStyle.textColor = COLOR_WHITE;
-    titleStyle.borderWidth = 0;
-    titleStyle.cornerRadius = 0;
-    lblHeaderTitle->setStyle(titleStyle);
-    ui->add(lblHeaderTitle);
+    // Battery-Icon Position (ganz rechts im Header)
+    batteryIconX = displayWidth - 55;
+    batteryIconY = 10;
     
-    Serial.println("  ✅ Titel-Label erstellt");
+    // ═══════════════════════════════════════════════════════════════════════
+    // Footer-Elemente erstellen
+    // ═══════════════════════════════════════════════════════════════════════
     
-    // ═══════════════════════════════════════════════════════════════
-    // Battery-Icon (rechts im Header)
-    // ═══════════════════════════════════════════════════════════════
-    lblBatteryIcon = new UILabel(420, 5, 55, 28, "");
-    lblBatteryIcon->setFontSize(1);
-    lblBatteryIcon->setAlignment(TextAlignment::CENTER);
-    lblBatteryIcon->setTransparent(false);
-    ElementStyle batteryStyle;
-    batteryStyle.bgColor = COLOR_GREEN;
-    batteryStyle.borderColor = COLOR_WHITE;
-    batteryStyle.textColor = COLOR_WHITE;
-    batteryStyle.borderWidth = 2;
-    batteryStyle.cornerRadius = 3;
-    lblBatteryIcon->setStyle(batteryStyle);
+    int16_t footerY = displayHeight - footerHeight;
     
-    // Initial mit Wert füllen
-    updateBatteryIcon();
-    
-    ui->add(lblBatteryIcon);
-    
-    Serial.println("  ✅ Battery-Icon erstellt");
-    
-    // ═══════════════════════════════════════════════════════════════
-    // Footer Label (zentriert)
-    // ═══════════════════════════════════════════════════════════════
-    lblFooter = new UILabel(0, 285, DISPLAY_WIDTH, 30, "v1.0.0 | Ready");
-    lblFooter->setFontSize(1);
-    lblFooter->setAlignment(TextAlignment::CENTER);
-    lblFooter->setTransparent(true);
+    footerLabel = new UILabel(0, footerY, displayWidth, footerHeight, "v1.0.0 | Ready");
+    footerLabel->setFontSize(1);
+    footerLabel->setAlignment(TextAlignment::CENTER);
+    footerLabel->setTransparent(false);
     ElementStyle footerStyle;
     footerStyle.bgColor = COLOR_DARKGRAY;
     footerStyle.textColor = COLOR_GRAY;
     footerStyle.borderWidth = 0;
     footerStyle.cornerRadius = 0;
-    lblFooter->setStyle(footerStyle);
-    ui->add(lblFooter);
+    footerLabel->setStyle(footerStyle);
+    footerLabel->setVisible(true);
+    ui->add(footerLabel);
     
-    Serial.println("  ✅ Footer-Label erstellt");
+    // Layout zeichnen
+    drawLayout();
     
-    initialized = true;
-    
-    Serial.println("GlobalUI: ✅ Initialisierung abgeschlossen!");
+    DEBUG_PRINTLN("GlobalUI: ✅ Initialisiert");
+    DEBUG_PRINTF("  Header: %d px\n", headerHeight);
+    DEBUG_PRINTF("  Content: %d px\n", contentHeight);
+    DEBUG_PRINTF("  Footer: %d px\n", footerHeight);
     
     return true;
 }
 
-void GlobalUI::setPageTitle(const char* title) {
-    if (!initialized || !lblHeaderTitle) return;
-    
-    lblHeaderTitle->setText(title);
-    Serial.printf("GlobalUI: Seiten-Titel: '%s'\n", title);
+void GlobalUI::setPageManager(UIPageManager* pm) {
+    pageManager = pm;
 }
 
-void GlobalUI::showBackButton(bool show, UIPageManager* pageManager, int targetPageId) {
-    if (!initialized || !btnBack) return;
-    
-    btnBack->setVisible(show);
-    
-    if (show && pageManager && targetPageId >= 0) {
-        // Event-Handler nur setzen wenn noch nicht gesetzt ODER Target geändert
-        static int lastTargetPageId = -1;
-        
-        if (lastTargetPageId != targetPageId) {
-            btnBack->off(EventType::CLICK);  // Alte Handler entfernen
-            btnBack->on(EventType::CLICK, [pageManager, targetPageId](EventData* data) {
-                Serial.printf("GlobalUI: Zurück-Button → Page %d\n", targetPageId);
-                pageManager->showPage(targetPageId);
-            });
-            lastTargetPageId = targetPageId;
-            Serial.printf("GlobalUI: Zurück-Button Event-Handler gesetzt (Target: %d)\n", targetPageId);
-        }
+void GlobalUI::setHeaderText(const char* title) {
+    if (headerLabel) {
+        headerLabel->setText(title);
     }
-    
-    Serial.printf("GlobalUI: Zurück-Button: %s\n", show ? "sichtbar" : "versteckt");
-}
-
-void GlobalUI::updateBatteryIcon() {
-    if (!initialized || !lblBatteryIcon || !battery) return;
-    
-    uint8_t percent = battery->getPercent();
-    float voltage = battery->getVoltage();
-    
-    // Text: Prozent-Anzeige
-    char buffer[8];
-    sprintf(buffer, "%d%%", percent);
-    lblBatteryIcon->setText(buffer);
-    
-    // Farbe basierend auf Ladezustand
-    updateBatteryIconColor(percent);
 }
 
 void GlobalUI::setFooterText(const char* text) {
-    if (!initialized || !lblFooter) return;
+    if (footerLabel) {
+        footerLabel->setText(text);
+    }
+}
+
+void GlobalUI::showBackButton(bool show, int targetPageId) {
+    if (backButton) {
+        backButton->setVisible(show);
+        backTargetPageId = targetPageId;
+    }
+}
+
+void GlobalUI::updateBatteryIcon() {
+    if (!battery) return;
     
-    lblFooter->setText(text);
+    uint8_t percent = battery->getPercent();
+    drawBatteryIcon(percent, false);
 }
 
 void GlobalUI::redrawHeader() {
-    Serial.println("    GlobalUI::redrawHeader() called");
-    Serial.printf("      initialized: %d, tft: %p\n", initialized, tft);
-    
-    if (!initialized || !tft) {
-        Serial.println("      ERROR: Not initialized or tft is NULL!");
-        return;
-    }
-    
-    drawHeaderBackground();
-    
-    // Widgets neu zeichnen
-    Serial.printf("      btnBack: %p, visible: %d\n", btnBack, btnBack ? btnBack->isVisible() : false);
-    if (btnBack && btnBack->isVisible()) {
-        btnBack->setNeedsRedraw(true);
-    }
-    
-    Serial.printf("      lblHeaderTitle: %p\n", lblHeaderTitle);
-    if (lblHeaderTitle) {
-        lblHeaderTitle->setNeedsRedraw(true);
-    }
-    
-    Serial.printf("      lblBatteryIcon: %p\n", lblBatteryIcon);
-    if (lblBatteryIcon) {
-        lblBatteryIcon->setNeedsRedraw(true);
-    }
-    
-    Serial.println("    GlobalUI::redrawHeader() complete");
-}
-
-void GlobalUI::redrawFooter() {
-    Serial.println("    GlobalUI::redrawFooter() called");
-    Serial.printf("      initialized: %d, tft: %p\n", initialized, tft);
-    
-    if (!initialized || !tft) {
-        Serial.println("      ERROR: Not initialized or tft is NULL!");
-        return;
-    }
-    
-    drawFooterBackground();
-    
-    Serial.printf("      lblFooter: %p\n", lblFooter);
-    if (lblFooter) {
-        lblFooter->setNeedsRedraw(true);
-    }
-    
-    Serial.println("    GlobalUI::redrawFooter() complete");
-}
-
-void GlobalUI::clearContentArea() {
-    if (!initialized || !tft) return;
-    
-    // Content-Bereich löschen (zwischen Header und Footer)
-    tft->fillRect(0, CONTENT_Y, DISPLAY_WIDTH, CONTENT_HEIGHT, COLOR_BLACK);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Private Methoden
-// ═══════════════════════════════════════════════════════════════════════════
-
-void GlobalUI::drawHeaderBackground() {
     if (!tft) return;
     
     // Header Hintergrund
-    tft->fillRect(0, 0, DISPLAY_WIDTH, HEADER_HEIGHT, COLOR_DARKGRAY);
+    tft->fillRect(0, 0, displayWidth, headerHeight, COLOR_DARKGRAY);
     
-    // Trennlinie unten
-    tft->drawLine(0, HEADER_HEIGHT - 1, DISPLAY_WIDTH, HEADER_HEIGHT - 1, COLOR_WHITE);
+    // Header Trennlinie
+    tft->drawLine(0, headerHeight - 1, displayWidth, headerHeight - 1, COLOR_WHITE);
 }
 
-void GlobalUI::drawFooterBackground() {
+void GlobalUI::redrawFooter() {
     if (!tft) return;
     
-    int16_t footerY = DISPLAY_HEIGHT - FOOTER_HEIGHT;
+    int16_t footerY = displayHeight - footerHeight;
     
-    // Trennlinie oben
-    tft->drawLine(0, footerY, DISPLAY_WIDTH, footerY, COLOR_WHITE);
+    // Footer Trennlinie
+    tft->drawLine(0, footerY, displayWidth, footerY, COLOR_WHITE);
     
     // Footer Hintergrund
-    tft->fillRect(0, footerY + 1, DISPLAY_WIDTH, FOOTER_HEIGHT - 1, COLOR_DARKGRAY);
+    tft->fillRect(0, footerY + 1, displayWidth, footerHeight - 1, COLOR_DARKGRAY);
 }
 
-void GlobalUI::updateBatteryIconColor(uint8_t percent) {
-    if (!lblBatteryIcon || !battery) return;
+void GlobalUI::drawLayout() {
+    drawHeader();
+    drawFooter();
     
-    // Farbe basierend auf Zustand
-    uint16_t color;
+    // Content-Bereich (schwarz)
+    tft->fillRect(0, headerHeight, displayWidth, contentHeight, COLOR_BLACK);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRIVATE METHODEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+void GlobalUI::drawBatteryIcon(uint8_t percent, bool charging) {
+    if (!tft) return;
     
-    if (battery->isCritical()) {
-        color = TFT_RED;
-    } else if (battery->isLow()) {
-        color = TFT_ORANGE;
-    } else if (percent > 60) {
-        color = TFT_DARKGREEN;
-    } else {
-        color = TFT_DARKCYAN;
+    // Battery-Icon (vereinfacht)
+    int16_t x = batteryIconX;
+    int16_t y = batteryIconY;
+    int16_t w = batteryIconWidth;
+    int16_t h = batteryIconHeight;
+    
+    // Hintergrund löschen
+    tft->fillRect(x - 2, y - 2, w + 4, h + 4, COLOR_DARKGRAY);
+    
+    // Rahmen
+    uint16_t color = getBatteryColor(percent);
+    tft->drawRect(x, y, w - 4, h, color);
+    tft->drawRect(x + 1, y + 1, w - 6, h - 2, color);
+    
+    // Plus-Pol (rechts)
+    tft->fillRect(x + w - 4, y + 6, 4, h - 12, color);
+    
+    // Füllung (basierend auf Prozent)
+    int16_t fillWidth = (w - 10) * percent / 100;
+    if (fillWidth > 0) {
+        tft->fillRect(x + 3, y + 3, fillWidth, h - 6, color);
     }
     
-    // Style aktualisieren
-    ElementStyle iconStyle;
-    iconStyle.bgColor = color;
-    iconStyle.borderColor = TFT_WHITE;
-    iconStyle.textColor = TFT_WHITE;
-    iconStyle.borderWidth = 2;
-    iconStyle.cornerRadius = 3;
-    lblBatteryIcon->setStyle(iconStyle);
+    // Prozent-Text (klein, nur wenn Platz)
+    if (w > 30) {
+        tft->setTextDatum(MC_DATUM);
+        tft->setTextColor(COLOR_WHITE, COLOR_DARKGRAY);
+        tft->setTextSize(1);
+        char buffer[8];
+        sprintf(buffer, "%d%%", percent);
+        tft->drawString(buffer, x - 15, y + h / 2);
+    }
+}
+
+uint16_t GlobalUI::getBatteryColor(uint8_t percent) {
+    if (percent >= 80) return COLOR_GREEN;
+    if (percent >= 50) return COLOR_YELLOW;
+    if (percent >= 20) return COLOR_ORANGE;
+    return COLOR_RED;
 }

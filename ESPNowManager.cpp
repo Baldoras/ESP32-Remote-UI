@@ -6,6 +6,7 @@
  */
 
 #include "EspNowManager.h"
+#include <esp_wifi.h>
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ESPNOWPACKET - BUILDER & PARSER
@@ -756,8 +757,9 @@ void EspNowManager::onDataRecvStatic(const esp_now_recv_info_t* info, const uint
     xQueueSendFromISR(mgr.rxQueue, &item, nullptr);
 }
 
-void EspNowManager::onDataSentStatic(const uint8_t* mac, esp_now_send_status_t status) {
-    getInstance().handleSendStatus(mac, status == ESP_NOW_SEND_SUCCESS);
+void EspNowManager::onDataSentStatic(const wifi_tx_info_t* tx_info, esp_now_send_status_t status) {
+    // Neue API (ESP32 Arduino Core 3.x)
+    getInstance().handleSendStatus(nullptr, status == ESP_NOW_SEND_SUCCESS);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

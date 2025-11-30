@@ -48,22 +48,22 @@ void UIPage::show() {
     if (globalUI) {
         Serial.println("  Calling redrawHeader()...");
         // Header und Footer komplett neu zeichnen (um Überlagerungen zu vermeiden)
-        globalUI->redrawHeader();
+        globalUI->drawHeader();
         
         Serial.println("  Calling redrawFooter()...");
-        globalUI->redrawFooter();
-        
-        Serial.println("  Calling clearContentArea()...");
-        // Content-Bereich löschen
-        globalUI->clearContentArea();
-        
+        globalUI->drawFooter();
+                
         Serial.println("  Calling setPageTitle()...");
         // Seiten-Titel setzen
-        globalUI->setPageTitle(pageName);
+        globalUI->setHeaderText(pageName);
         
         Serial.println("  Calling showBackButton()...");
         // Zurück-Button konfigurieren
-        globalUI->showBackButton(hasBackButton, pageManager, backButtonTarget);
+        if (hasBackButton) {
+            globalUI->showBackButton(true, pageManager, backButtonTarget);
+        } else {
+            globalUI->showBackButton(false);  // Nutzt Default-Parameter
+        }
         
         Serial.println("  Calling updateBatteryIcon()...");
         // Battery-Icon aktualisieren

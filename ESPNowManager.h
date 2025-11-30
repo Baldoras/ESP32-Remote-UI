@@ -21,6 +21,7 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
@@ -719,7 +720,7 @@ private:
 
     // Statische Callbacks für ESP-NOW
     static void onDataRecvStatic(const esp_now_recv_info_t* info, const uint8_t* data, int len);
-    static void onDataSentStatic(const uint8_t* mac, esp_now_send_status_t status);
+    static void onDataSentStatic(const wifi_tx_info_t* tx_info, esp_now_send_status_t status);
 
     // Worker Task
     static void workerTask(void* parameter);

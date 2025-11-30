@@ -84,6 +84,15 @@
 #define BACKLIGHT_MIN          20     // Minimale Helligkeit
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 📡 ESP-NOW EINSTELLUNGEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+#define ESPNOW_MAX_PEERS          5       // Maximale Anzahl Peers
+#define ESPNOW_CHANNEL            0       // WiFi-Kanal (0 = auto)
+#define ESPNOW_HEARTBEAT_INTERVAL 500   // Heartbeat alle 500ms
+#define ESPNOW_TIMEOUT_MS         2000    // Verbindungs-Timeout 2s
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 👆 TOUCH EINSTELLUNGEN
 // ═══════════════════════════════════════════════════════════════════════════
 
