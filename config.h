@@ -55,8 +55,8 @@
 #define DISPLAY_ROTATION    3      // Display-Rotation (0-3)
 
 // SPI-Geschwindigkeiten
-#define TFT_SPI_FREQUENCY    27000000  // 40 MHz für Display
-#define TOUCH_SPI_FREQUENCY  2500000   // 2,2 MHz für Touch
+#define TFT_SPI_FREQUENCY    27000000  // 27 MHz für Display
+#define TOUCH_SPI_FREQUENCY  2500000   // 2,5 MHz für Touch
 #define SD_SPI_FREQUENCY     25000000  // 25 MHz für SD
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -97,10 +97,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Touch-Kalibrierung (nach erstem Start anpassen!)
-#define TOUCH_MIN_X  100
-#define TOUCH_MAX_X  4000
-#define TOUCH_MIN_Y  100
-#define TOUCH_MAX_Y  4000
+#define TOUCH_MIN_X  1
+#define TOUCH_MAX_X  4095
+#define TOUCH_MIN_Y  1
+#define TOUCH_MAX_Y  4095
 
 #define TOUCH_ROTATION  1      // Touch-Rotation (0-3)
 #define TOUCH_THRESHOLD 40     // Mindestdruck für Touch-Erkennung
