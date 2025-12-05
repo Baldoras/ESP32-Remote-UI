@@ -15,6 +15,7 @@
 #include "TouchManager.h"
 #include "BatteryMonitor.h"
 #include "SDCardHandler.h"
+#include "JoystickHandler.h"
 #include "GlobalUI.h"
 #include "UIPage.h"
 #include "UIPageManager.h"
@@ -29,10 +30,11 @@
 DisplayHandler display;
 TouchManager touch;
 BatteryMonitor battery;
-SDCardHandler sdCard;  // ⭐ SD-Karte
+SDCardHandler sdCard;
+JoystickHandler joystick;
 
 // Config (aus SD-Karte geladen)
-SDConfig config;  // ⭐ Config
+SDConfig config;
 
 // GlobalUI (Header/Footer/Battery zentral)
 GlobalUI globalUI;
@@ -556,6 +558,21 @@ public:
         lblInfo->setAlignment(TextAlignment::CENTER);
         lblInfo->setTransparent(true);
         addContentElement(lblInfo);
+
+        UIButton* btnCalibrate = new UIButton(
+            layout.contentX + 20,
+            layout.contentY + 180,
+            200,
+            40,
+            "Calibrate Center"
+        );
+
+        btnCalibrate->on(EventType::CLICK, [](EventData* data) {
+            Serial.println("→ Kalibriere Joystick Center...");
+            joystick.calibrateCenter();
+            Serial.println("  ✅ Fertig! Joystick neutral halten!");
+        });
+        addContentElement(btnCalibrate);
         
         Serial.println("  ✅ SettingsPage build complete");
     }
@@ -649,6 +666,15 @@ private:
         txtInfo->appendLine(buffer);
         txtInfo->appendLine("");
         
+        txtInfo->appendLine("Joystick:");
+        sprintf(buffer, "  X-Achse: %d (raw: %d)", joystick.getX(), joystick.getRawX());
+        txtInfo->appendLine(buffer);
+        sprintf(buffer, "  Y-Achse: %d (raw: %d)", joystick.getY(), joystick.getRawY());
+        txtInfo->appendLine(buffer);
+        sprintf(buffer, "  Neutral: %s", joystick.isNeutral() ? "Yes" : "No");
+        txtInfo->appendLine(buffer);
+        txtInfo->appendLine("");
+
         txtInfo->appendLine("System:");
         sprintf(buffer, "  Free Heap: %d bytes", ESP.getFreeHeap());
         txtInfo->appendLine(buffer);
@@ -671,7 +697,7 @@ void setup() {
     setupStartTime = millis();
     
     Serial.begin(115200);
-    delay(100);
+    delay(2000);
     
     DEBUG_PRINTLN("\n╔════════════════════════════════════════╗");
     DEBUG_PRINTLN("║   ESP32-S3 Remote Control Startup      ║");
@@ -683,6 +709,7 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ SD-Card...");
     bool sdAvailable = sdCard.begin();
+
     if (sdAvailable) {
         Serial.println("  ✅ SD-Card OK");
         sdCard.logBootStart("PowerOn", ESP.getFreeHeap(), FIRMWARE_VERSION);
@@ -752,10 +779,11 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Touch...");
     SPIClass* hspi = &display.getTft().getSPIinstance();
+
     if (touch.begin(hspi)) {
         Serial.println("  ✅ Touch OK");
         
-        // ⭐ Kalibrierung aus Config
+        // Kalibrierung aus Config
         touch.setCalibration(config.touchMinX, config.touchMaxX, 
                             config.touchMinY, config.touchMaxY);
         touch.setThreshold(config.touchThreshold);
@@ -789,21 +817,36 @@ void setup() {
     }
     
     // ═══════════════════════════════════════════════════════════════
+    // Joystick initialisieren (nach Battery Monitor, vor ESP-NOW)
+    // ═══════════════════════════════════════════════════════════════
+    Serial.println("→ Initialisiere Joystick...");
+    
+    if (joystick.begin()) {
+        Serial.println("  ✅ Joystick initialisiert");
+        joystick.setDeadzone(10);  // 10% Deadzone
+        joystick.setUpdateInterval(50);  // 50ms = 20Hz
+        joystick.printInfo();
+    } else {
+        Serial.println("  ❌ Joystick init failed!");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // ESP-NOW
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ ESP-NOW...");
     EspNowManager& espnow = EspNowManager::getInstance();
+
     if (espnow.begin(ESPNOW_CHANNEL)) {
         Serial.println("  ✅ ESP-NOW OK");
         Serial.printf("  MAC: %s\n", espnow.getOwnMacString().c_str());
         
-        // ⭐ Heartbeat aus Config
+        // Heartbeat aus Config
         espnow.setHeartbeat(true, config.espnowHeartbeatInterval);
         espnow.setTimeout(config.espnowTimeout);
         
         sdCard.logSetupStep("ESP-NOW", true, espnow.getOwnMacString().c_str());
         
-        // ⭐ Events für Logging registrieren
+        // Events für Logging registrieren
         espnow.onEvent(EspNowEvent::PEER_CONNECTED, [](EspNowEventData* data) {
             String mac = EspNowManager::macToString(data->mac);
             sdCard.logConnection(mac.c_str(), "connected");
@@ -832,11 +875,13 @@ void setup() {
     Serial.println("→ GlobalUI...");
     UIManager* ui = display.getUI();
     TFT_eSPI* tft = &display.getTft();
+
     if (!globalUI.init(ui, tft, &battery)) {
         Serial.println("  ❌ GlobalUI failed!");
         sdCard.logSetupStep("GlobalUI", false, "Init error");
         while (1) delay(100);
     }
+
     Serial.println("  ✅ GlobalUI OK");
     sdCard.logSetupStep("GlobalUI", true);
     
@@ -908,14 +953,14 @@ void loop() {
         lastBatteryUpdate = millis();
     }
     
-    // ⭐ Battery-Status loggen (alle 60 Sekunden)
+    // Battery-Status loggen (alle 60 Sekunden)
     if (sdCard.isAvailable() && (millis() - lastBatteryLog > 60000)) {
         sdCard.logBattery(battery.getVoltage(), battery.getPercent(), 
                          battery.isLow(), battery.isCritical());
         lastBatteryLog = millis();
     }
     
-    // ⭐ Battery Critical → Error-Log
+    // Battery Critical → Error-Log
     if (battery.isCritical()) {
         static bool criticalLogged = false;
         if (!criticalLogged) {
@@ -932,13 +977,35 @@ void loop() {
         touch.update();
     }
     
+     // ═══════════════════════════════════════════════════════════════
+    // Joystick auslesen und via ESP-NOW senden
+    // ═══════════════════════════════════════════════════════════════
+    if (joystick.update()) {
+        // Joystick-Werte haben sich geändert
+        int16_t joyX = joystick.getX();  // -100 bis +100
+        int16_t joyY = joystick.getY();  // -100 bis +100
+        
+        // An RemoteControlPage senden (für lokale Anzeige)
+        if (remotePage) {
+            remotePage->setJoystickPosition(joyX, joyY);
+        }
+        
+        // Via ESP-NOW senden
+        /*if (espnowUI.sendJoystick(joyX, joyY)) {
+            // Erfolgreich gesendet
+            
+            // Debug (optional, kann auskommentiert werden)
+            // Serial.printf("Joystick: X=%d, Y=%d\n", joyX, joyY);
+        }*/
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // ESP-NOW
     // ═══════════════════════════════════════════════════════════════
     EspNowManager& espnow = EspNowManager::getInstance();
     espnow.update();
     
-    // ⭐ Connection-Stats loggen (alle 5 Minuten)
+    // Connection-Stats loggen (alle 5 Minuten)
     if (sdCard.isAvailable() && (millis() - lastConnectionLog > 300000)) {
         if (espnow.isConnected()) {
             // Vereinfacht: Stats vom System
