@@ -156,20 +156,15 @@ void BatteryMonitor::printInfo() {
     DEBUG_PRINTLN("╚════════════════════════════════════════╝\n");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PRIVATE METHODEN
-// ═══════════════════════════════════════════════════════════════════════════
 
 float BatteryMonitor::readRawVoltage() {
     // ADC auslesen (12-Bit: 0-4095)
     int adcValue = analogRead(VOLTAGE_SENSOR_PIN);
-    
+
     // In Spannung umrechnen
-    // ADC: 0-4095 → 0-3.3V
-    // Modul: 0-3.3V → 0-25V
-    float voltage = (adcValue / 4095.0f) * 3.3f * (VOLTAGE_RANGE_MAX / 3.3f);
-    voltage *= 0.7f;
-    
+    float voltage = (VOLTAGE_RANGE_MAX / 4095.0f) * float(adcValue);
+    voltage *= VOLTAGE_CALIBRATION_FACTOR;
+
     return voltage;
 }
 
