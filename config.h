@@ -99,10 +99,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Touch-Kalibrierung (nach erstem Start anpassen!)
-#define TOUCH_MIN_X  1
-#define TOUCH_MAX_X  4095
-#define TOUCH_MIN_Y  1
-#define TOUCH_MAX_Y  4095
+#define TOUCH_MIN_X  100
+#define TOUCH_MAX_X  4000
+#define TOUCH_MIN_Y  100
+#define TOUCH_MAX_Y  4000
 
 #define TOUCH_ROTATION  1      // Touch-Rotation (0-3)
 #define TOUCH_THRESHOLD 40     // Mindestdruck für Touch-Erkennung

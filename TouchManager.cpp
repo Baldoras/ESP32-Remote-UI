@@ -7,7 +7,7 @@
 #include "TouchManager.h"
 
 TouchManager::TouchManager()
-    : ts(nullptr)  // ⭐ WICHTIG: Pointer auf nullptr initialisieren!
+    : ts(nullptr)  // WICHTIG: Pointer auf nullptr initialisieren!
     , initialized(false)
     , lastTouchState(false)
     , currentTouchState(false)
@@ -38,7 +38,7 @@ TouchManager::~TouchManager() {
 
 bool TouchManager::begin(SPIClass* spi) {
     if (spi == nullptr) {
-        DEBUG_PRINTLN("TouchManager: ❌ SPI-Bus ist nullptr!");
+        DEBUG_PRINTLN("TouchManager: SPI-Bus ist nullptr!");
         return false;
     }
     
@@ -48,7 +48,7 @@ bool TouchManager::begin(SPIClass* spi) {
     ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
     
     if (ts == nullptr) {
-        DEBUG_PRINTLN("TouchManager: ❌ Konnte XPT2046 Objekt nicht erstellen!");
+        DEBUG_PRINTLN("TouchManager: Konnte XPT2046 Objekt nicht erstellen!");
         return false;
     }
     
@@ -58,7 +58,7 @@ bool TouchManager::begin(SPIClass* spi) {
     
     initialized = true;
     
-    DEBUG_PRINTLN("TouchManager: ✅ Touch initialisiert");
+    DEBUG_PRINTLN("TouchManager: Touch initialisiert");
     DEBUG_PRINTF("TouchManager: CS=%d, IRQ=%d, Rotation=%d\n", TOUCH_CS, TOUCH_IRQ, rotation);
     
     return true;
@@ -67,8 +67,8 @@ bool TouchManager::begin(SPIClass* spi) {
 void TouchManager::end() {
     if (ts != nullptr) {
         DEBUG_PRINTLN("TouchManager: Gebe Touch-Speicher frei...");
-        delete ts;  // ⭐ Speicher freigeben
-        ts = nullptr;  // ⭐ Auf nullptr setzen
+        delete ts;  // Speicher freigeben
+        ts = nullptr;  // Auf nullptr setzen
         initialized = false;
         DEBUG_PRINTLN("TouchManager: ✅ Touch deaktiviert");
     }
@@ -79,7 +79,7 @@ bool TouchManager::isAvailable() {
 }
 
 bool TouchManager::update() {
-    // ⭐ Prüfen ob Touch verfügbar ist (nullptr-Check!)
+    // Prüfen ob Touch verfügbar ist (nullptr-Check!)
     if (!isAvailable()) {
         return false;
     }
@@ -123,7 +123,7 @@ bool TouchManager::update() {
 }
 
 bool TouchManager::updateIfIRQ() {
-    // ⭐ HYBRID: Erst schneller GPIO-Check!
+    // HYBRID: Erst schneller GPIO-Check!
     if (!isIRQActive()) {
         // Kein Touch → Status aktualisieren
         lastTouchState = currentTouchState;
@@ -137,7 +137,7 @@ bool TouchManager::updateIfIRQ() {
 }
 
 bool TouchManager::isIRQActive() {
-    // ⭐ Schneller GPIO-Check (keine SPI-Kommunikation!)
+    // Schneller GPIO-Check (keine SPI-Kommunikation!)
     // Touch IRQ ist LOW wenn Touch aktiv
     return (digitalRead(TOUCH_IRQ) == LOW);
 }
@@ -249,7 +249,7 @@ unsigned long TouchManager::getTouchDuration() {
 
 void TouchManager::printTouchInfo() {
     if (!isAvailable()) {
-        DEBUG_PRINTLN("TouchManager: ❌ Touch nicht verfügbar");
+        DEBUG_PRINTLN("TouchManager: Touch nicht verfügbar");
         return;
     }
     
