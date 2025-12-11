@@ -106,7 +106,7 @@ void DisplayHandler::initBacklight() {
     // Helligkeit setzen
     setBacklight(currentBrightness);
     
-    DEBUG_PRINTF("DisplayHandler: ✅ Backlight initialisiert (Helligkeit: %d)\n", currentBrightness);
+    DEBUG_PRINTF("DisplayHandler: ✅ Backlight initialisiert (Helligkeit: %d) | Channel: %d\n", currentBrightness, backlightChannel);
 }
 
 void DisplayHandler::clear(uint16_t color) {
@@ -121,13 +121,12 @@ void DisplayHandler::clear(uint16_t color) {
 
 void DisplayHandler::setBacklight(uint8_t brightness) {
     // Auf gültigen Bereich begrenzen
-    brightness = constrain(brightness, BACKLIGHT_MIN, BACKLIGHT_MAX);
-    currentBrightness = brightness;
+    currentBrightness = constrain(brightness, BACKLIGHT_MIN, BACKLIGHT_MAX);;
     
     // PWM setzen
-    ledcWrite(TFT_BL, brightness);
+    ledcWrite(TFT_BL, currentBrightness);
     
-    DEBUG_PRINTF("DisplayHandler: Backlight-Helligkeit: %d\n", brightness);
+    DEBUG_PRINTF("DisplayHandler: Backlight-Helligkeit: %d\n", currentBrightness);
 }
 
 void DisplayHandler::setBacklightOn(bool on) {

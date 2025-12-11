@@ -78,9 +78,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #define BACKLIGHT_PWM_CHANNEL  0      // PWM-Kanal für Backlight
-#define BACKLIGHT_PWM_FREQ     12000   // PWM-Frequenz 5kHz
+#define BACKLIGHT_PWM_FREQ     25000   // PWM-Frequenz 5kHz
 #define BACKLIGHT_PWM_RES      8      // 8-Bit Auflösung (0-255)
-#define BACKLIGHT_DEFAULT      67    // Standard-Helligkeit (0-255)
+#define BACKLIGHT_DEFAULT      20     // Standard-Helligkeit (0-255)
 #define BACKLIGHT_MAX          255    // Maximale Helligkeit
 #define BACKLIGHT_MIN          20     // Minimale Helligkeit
 
