@@ -117,6 +117,7 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Display...");
     if (!display.begin()) {
+        Serial.println("  Display init failed!");
         sdCard.logSetupStep("Display", false, "Init failed");
         sdCard.logError("Display", ERR_DISPLAY_INIT, "begin() failed");
         while (1) delay(100);
@@ -171,11 +172,14 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     // Joystick initialisieren (nach Battery Monitor, vor ESP-NOW)
     // ═══════════════════════════════════════════════════════════════
+    Serial.println("→ Joystick...");
     
     if (joystick.begin()) {
+        Serial.println("  Joystick OK");
         joystick.setDeadzone(10);  // 10% Deadzone
         joystick.setUpdateInterval(50);  // 50ms = 20Hz
         joystick.printInfo();
+        sdCard.logSetupStep("Joystick", true);
     } else {
         Serial.println("  Joystick init failed!");
         sdCard.logSetupStep("Joystick", false, "Init failed");
@@ -191,33 +195,17 @@ void setup() {
         // Auto-Sleep bei kritischer Batterie aktivieren (Wake via Touch)
         powerMgr.setAutoSleepOnCritical(true, WakeSource::TOUCH);
         
-        // Before-Sleep Callback: Ressourcen aufräumen
+        // Before-Sleep Callback: SD-Karte flushen
         powerMgr.setBeforeSleepCallback([]() {
-            DEBUG_PRINTLN("PowerManager: Cleanup before sleep...");
+            DEBUG_PRINTLN("PowerManager: Before-Sleep Callback...");
             
-            // Pages dekonstruieren
-            if (homePage) { delete homePage; homePage = nullptr; }
-            if (remotePage) { delete remotePage; remotePage = nullptr; }
-            if (connectionPage) { delete connectionPage; connectionPage = nullptr; }
-            if (settingsPage) { delete settingsPage; settingsPage = nullptr; }
-            if (infoPage) { delete infoPage; infoPage = nullptr; }
-            
-            DEBUG_PRINTLN("  Pages deleted");
-            
-            // SD-Karte flushen
+            // SD-Karte flushen (letzte Daten schreiben)
             if (sdCard.isAvailable()) {
                 sdCard.flush();
                 DEBUG_PRINTLN("  SD-Card flushed");
             }
             
-            // ESP-NOW beenden
-            EspNowManager& espnow = EspNowManager::getInstance();
-            if (espnow.isInitialized()) {
-                espnow.end();
-                DEBUG_PRINTLN("  ESP-NOW ended");
-            }
-            
-            DEBUG_PRINTLN("  Cleanup complete");
+            DEBUG_PRINTLN("  Callback complete");
         });
         
         // Wake-Up Grund ausgeben
