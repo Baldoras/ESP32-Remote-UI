@@ -12,6 +12,7 @@
 #include "JoystickHandler.h"
 #include "SDCardHandler.h"
 #include "TouchManager.h"
+#include "PowerManager.h"
 #include "config.h"
 
 extern DisplayHandler display;
@@ -20,6 +21,7 @@ extern BatteryMonitor battery;
 extern JoystickHandler joystick;
 extern SDCardHandler sdCard;
 extern TouchManager touch;
+extern PowerManager powerMgr;
 
 // Seiten-IDs
 enum PageID {

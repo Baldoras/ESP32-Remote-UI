@@ -1,7 +1,7 @@
 /**
  * ESP32-Remote-UI.ino
  * 
- * Fernsteuerung mit ESP-NOW und Multi-Page UI + SD-Card Logging
+ * Fernsteuerung mit ESP-NOW und Multi-Page UI + SD-Card Logging + PowerManager
  * 
  */
 
@@ -10,6 +10,7 @@
 #include "BatteryMonitor.h"
 #include "SDCardHandler.h"
 #include "JoystickHandler.h"
+#include "PowerManager.h"
 #include "GlobalUI.h"
 #include "UIPageManager.h"
 #include "ESPNowManager.h"
@@ -21,6 +22,7 @@ TouchManager touch;
 BatteryMonitor battery;
 SDCardHandler sdCard;
 JoystickHandler joystick;
+PowerManager powerMgr;
 
 // Config (aus SD-Karte geladen)
 SDConfig config;
@@ -51,7 +53,7 @@ void setup() {
     
     DEBUG_PRINTLN("\n╔════════════════════════════════════════╗");
     DEBUG_PRINTLN("║   ESP32-S3 Remote Control Startup      ║");
-    DEBUG_PRINTLN("║   WITH SD-CARD LOGGING                 ║");
+    DEBUG_PRINTLN("║   WITH SD-CARD LOGGING + POWERMANAGER  ║");
     DEBUG_PRINTLN("╚════════════════════════════════════════╝\n");
     
     // ═══════════════════════════════════════════════════════════════
@@ -115,7 +117,6 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Display...");
     if (!display.begin()) {
-        Serial.println(" Display init failed!");
         sdCard.logSetupStep("Display", false, "Init failed");
         sdCard.logError("Display", ERR_DISPLAY_INIT, "begin() failed");
         while (1) delay(100);
@@ -170,15 +171,63 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     // Joystick initialisieren (nach Battery Monitor, vor ESP-NOW)
     // ═══════════════════════════════════════════════════════════════
-    Serial.println("→ Initialisiere Joystick...");
     
     if (joystick.begin()) {
-        Serial.println("  Joystick initialisiert");
         joystick.setDeadzone(10);  // 10% Deadzone
         joystick.setUpdateInterval(50);  // 50ms = 20Hz
         joystick.printInfo();
     } else {
         Serial.println("  Joystick init failed!");
+        sdCard.logSetupStep("Joystick", false, "Init failed");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PowerManager
+    // ═══════════════════════════════════════════════════════════════
+    Serial.println("→ PowerManager...");
+    if (powerMgr.begin(&battery, &display)) {
+        Serial.println("  PowerManager OK");
+        
+        // Auto-Sleep bei kritischer Batterie aktivieren (Wake via Touch)
+        powerMgr.setAutoSleepOnCritical(true, WakeSource::TOUCH);
+        
+        // Before-Sleep Callback: Ressourcen aufräumen
+        powerMgr.setBeforeSleepCallback([]() {
+            DEBUG_PRINTLN("PowerManager: Cleanup before sleep...");
+            
+            // Pages dekonstruieren
+            if (homePage) { delete homePage; homePage = nullptr; }
+            if (remotePage) { delete remotePage; remotePage = nullptr; }
+            if (connectionPage) { delete connectionPage; connectionPage = nullptr; }
+            if (settingsPage) { delete settingsPage; settingsPage = nullptr; }
+            if (infoPage) { delete infoPage; infoPage = nullptr; }
+            
+            DEBUG_PRINTLN("  Pages deleted");
+            
+            // SD-Karte flushen
+            if (sdCard.isAvailable()) {
+                sdCard.flush();
+                DEBUG_PRINTLN("  SD-Card flushed");
+            }
+            
+            // ESP-NOW beenden
+            EspNowManager& espnow = EspNowManager::getInstance();
+            if (espnow.isInitialized()) {
+                espnow.end();
+                DEBUG_PRINTLN("  ESP-NOW ended");
+            }
+            
+            DEBUG_PRINTLN("  Cleanup complete");
+        });
+        
+        // Wake-Up Grund ausgeben
+        String wakeReason = powerMgr.getWakeupReason();
+        Serial.printf("  Wake-Up: %s\n", wakeReason.c_str());
+        
+        sdCard.logSetupStep("PowerManager", true, wakeReason.c_str());
+    } else {
+        Serial.println("  PowerManager init failed!");
+        sdCard.logSetupStep("PowerManager", false, "Init failed");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -227,7 +276,7 @@ void setup() {
     UIManager* ui = display.getUI();
     TFT_eSPI* tft = &display.getTft();
 
-    if (!globalUI.init(ui, tft, &battery)) {
+    if (!globalUI.init(ui, tft, &battery, &powerMgr)) {
         Serial.println("  GlobalUI failed!");
         sdCard.logSetupStep("GlobalUI", false, "Init error");
         while (1) delay(100);
@@ -323,13 +372,18 @@ void loop() {
     }
     
     // ═══════════════════════════════════════════════════════════════
+    // PowerManager (Auto-Sleep Check)
+    // ═══════════════════════════════════════════════════════════════
+    powerMgr.update();
+    
+    // ═══════════════════════════════════════════════════════════════
     // Touch
     // ═══════════════════════════════════════════════════════════════
     if (touch.isAvailable()) {
         touch.update();
     }
     
-     // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     // Joystick auslesen und via ESP-NOW senden
     // ═══════════════════════════════════════════════════════════════
     if (joystick.update()) {
@@ -343,7 +397,7 @@ void loop() {
         }
         
         // Via ESP-NOW senden
-        
+        // TODO: Implement ESP-NOW sending
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -370,9 +424,6 @@ void loop() {
     // ═══════════════════════════════════════════════════════════════
     display.update();
     pageManager.update();
-    
-    // TODO: Joystick auslesen
-    // remotePage->setJoystickPosition(joyX, joyY);
     
     delay(10);
 }

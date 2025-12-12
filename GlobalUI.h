@@ -4,7 +4,7 @@
  * Globaler UI-Manager für Header, Footer und Battery-Icon
  * 
  * Verwaltet UI-Elemente die auf ALLEN Seiten gleich sind:
- * - Header (0-40px): Zurück-Button + Seiten-Titel + Battery-Icon
+ * - Header (0-40px): Zurück-Button + Seiten-Titel + Sleep-Button + Battery-Icon
  * - Footer (280-320px): Status-Text
  * 
  * Vorteile:
@@ -22,6 +22,7 @@
 #include "UILabel.h"
 #include "UIButton.h"
 #include "BatteryMonitor.h"
+#include "PowerManager.h"
 #include "config.h"
 
 // Forward declaration
@@ -46,9 +47,10 @@ public:
      * @param ui UIManager Pointer
      * @param tft TFT Display Pointer
      * @param battery BatteryMonitor Pointer
+     * @param powerMgr PowerManager Pointer
      * @return true bei Erfolg
      */
-    bool init(UIManager* ui, TFT_eSPI* tft, BatteryMonitor* battery);
+    bool init(UIManager* ui, TFT_eSPI* tft, BatteryMonitor* battery, PowerManager* powerMgr);
 
     /**
      * PageManager setzen (einmalig beim Setup)
@@ -108,12 +110,14 @@ private:
     UIManager* ui;                  // UI-Manager
     TFT_eSPI* tft;                  // Display
     BatteryMonitor* battery;        // Battery Monitor
+    PowerManager* powerMgr;         // Power Manager
     UIPageManager* pageManager;     // Page Manager (für Back-Button Navigation)
     
     // Global UI Elemente
     UILabel* lblHeaderTitle;        // Seiten-Titel (zentriert)
     UILabel* lblBatteryIcon;        // Battery-Icon (rechts oben)
     UIButton* btnBack;              // Zurück-Button (links oben)
+    UIButton* btnSleep;             // Sleep-Button (rechts, vor Battery)
     UILabel* lblFooter;             // Footer-Text (zentriert)
     
     bool initialized;               // Initialisierungs-Flag
@@ -132,6 +136,11 @@ private:
      * Battery-Icon Farbe basierend auf Ladezustand
      */
     void updateBatteryIconColor(uint8_t percent);
+    
+    /**
+     * Sleep-Button Callback
+     */
+    void onSleepButtonClicked();
 };
 
 #endif // GLOBAL_UI_H

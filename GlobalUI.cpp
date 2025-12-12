@@ -1,7 +1,7 @@
 /**
  * GlobalUI.cpp
  * 
- * Implementation des globalen UI-Managers
+ * Implementation des globalen UI-Managers mit PowerManager Integration
  */
 
 #include "GlobalUI.h"
@@ -11,10 +11,12 @@ GlobalUI::GlobalUI()
     : ui(nullptr)
     , tft(nullptr)
     , battery(nullptr)
+    , powerMgr(nullptr)
     , pageManager(nullptr)
     , lblHeaderTitle(nullptr)
     , lblBatteryIcon(nullptr)
     , btnBack(nullptr)
+    , btnSleep(nullptr)
     , lblFooter(nullptr)
     , initialized(false)
 {
@@ -24,8 +26,8 @@ GlobalUI::~GlobalUI() {
     // Widgets werden vom UIManager verwaltet (Ownership dort)
 }
 
-bool GlobalUI::init(UIManager* uiMgr, TFT_eSPI* display, BatteryMonitor* batteryMon) {
-    if (!uiMgr || !display || !batteryMon) {
+bool GlobalUI::init(UIManager* uiMgr, TFT_eSPI* display, BatteryMonitor* batteryMon, PowerManager* powerManager) {
+    if (!uiMgr || !display || !batteryMon || !powerManager) {
         Serial.println("GlobalUI: ❌ Ungültige Parameter!");
         return false;
     }
@@ -33,6 +35,7 @@ bool GlobalUI::init(UIManager* uiMgr, TFT_eSPI* display, BatteryMonitor* battery
     ui = uiMgr;
     tft = display;
     battery = batteryMon;
+    powerMgr = powerManager;
     
     Serial.println("GlobalUI: Initialisiere globale UI-Elemente...");
     
@@ -83,7 +86,30 @@ bool GlobalUI::init(UIManager* uiMgr, TFT_eSPI* display, BatteryMonitor* battery
     Serial.println("  ✅ Titel-Label erstellt");
     
     // ═══════════════════════════════════════════════════════════════
-    // Battery-Icon (rechts im Header)
+    // Sleep-Button (rechts vor Battery-Icon)
+    // ═══════════════════════════════════════════════════════════════
+    btnSleep = new UIButton(360, 3, 50, 34, "Z");  // 50x34px, Zeichen "Z"
+    ElementStyle sleepStyle;
+    sleepStyle.bgColor = COLOR_PURPLE;
+    sleepStyle.borderColor = COLOR_WHITE;
+    sleepStyle.textColor = COLOR_WHITE;
+    sleepStyle.borderWidth = 2;
+    sleepStyle.cornerRadius = 5;
+    btnSleep->setStyle(sleepStyle);
+    btnSleep->setVisible(true);  // Immer sichtbar
+    btnSleep->setNeedsRedraw(true);
+    
+    // Sleep-Button Event-Handler
+    btnSleep->on(EventType::CLICK, [this](EventData* data) {
+        this->onSleepButtonClicked();
+    });
+    
+    ui->add(btnSleep);
+    
+    Serial.println("  ✅ Sleep-Button erstellt");
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Battery-Icon (ganz rechts im Header)
     // ═══════════════════════════════════════════════════════════════
     lblBatteryIcon = new UILabel(420, 5, 55, 28, "");
     lblBatteryIcon->setFontSize(1);
@@ -213,6 +239,11 @@ void GlobalUI::redrawHeader() {
         lblHeaderTitle->setNeedsRedraw(true);
     }
     
+    Serial.printf("      btnSleep: %p\n", btnSleep);
+    if (btnSleep) {
+        btnSleep->setNeedsRedraw(true);
+    }
+    
     Serial.printf("      lblBatteryIcon: %p\n", lblBatteryIcon);
     if (lblBatteryIcon) {
         lblBatteryIcon->setNeedsRedraw(true);
@@ -297,4 +328,24 @@ void GlobalUI::updateBatteryIconColor(uint8_t percent) {
     iconStyle.borderWidth = 2;
     iconStyle.cornerRadius = 3;
     lblBatteryIcon->setStyle(iconStyle);
+}
+
+void GlobalUI::onSleepButtonClicked() {
+    if (!initialized || !powerMgr || !tft) return;
+    
+    Serial.println("GlobalUI: Sleep-Button geklickt!");
+    
+    // Nachricht anzeigen (2 Sekunden)
+    tft->fillRect(0, CONTENT_Y, DISPLAY_WIDTH, CONTENT_HEIGHT, COLOR_BLACK);
+    tft->setTextDatum(MC_DATUM);
+    tft->setTextColor(COLOR_WHITE);
+    tft->setTextSize(3);
+    tft->drawString("Sleep Mode", DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 - 20);
+    tft->setTextSize(2);
+    tft->drawString("Touch to wake up", DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 20);
+    
+    delay(2000);
+    
+    // Deep-Sleep aktivieren (Wake via Touch)
+    powerMgr->sleep(WakeSource::TOUCH);
 }
