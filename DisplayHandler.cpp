@@ -106,7 +106,7 @@ void DisplayHandler::initBacklight() {
     // Helligkeit setzen
     setBacklight(currentBrightness);
     
-    DEBUG_PRINTF("DisplayHandler: ✅ Backlight initialisiert (Helligkeit: %d) | Channel: %d\n", currentBrightness, backlightChannel);
+    DEBUG_PRINTF("DisplayHandler: ✅ Backlight initialisiert (Helligkeit: %d)\n", currentBrightness);
 }
 
 void DisplayHandler::clear(uint16_t color) {
