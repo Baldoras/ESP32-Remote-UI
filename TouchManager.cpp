@@ -1,10 +1,11 @@
 /**
  * TouchManager.cpp
  * 
- * Implementation des Touch-Managers
+ * Implementation des Touch-Managers mit UserConfig Integration
  */
 
 #include "TouchManager.h"
+#include "UserConfig.h"
 
 TouchManager::TouchManager()
     : ts(nullptr)  // WICHTIG: Pointer auf nullptr initialisieren!
@@ -36,7 +37,7 @@ TouchManager::~TouchManager() {
     end();  // Speicher freigeben falls noch allokiert
 }
 
-bool TouchManager::begin(SPIClass* spi) {
+bool TouchManager::begin(SPIClass* spi, UserConfig* config) {
     if (spi == nullptr) {
         DEBUG_PRINTLN("TouchManager: SPI-Bus ist nullptr!");
         return false;
@@ -56,10 +57,17 @@ bool TouchManager::begin(SPIClass* spi) {
     ts->begin(*spi);
     ts->setRotation(rotation);
     
+    // Kalibrierung aus Config laden (falls verfügbar)
+    if (config != nullptr) {
+        loadCalibrationFromConfig(config);
+    }
+    
     initialized = true;
     
-    DEBUG_PRINTLN("TouchManager: Touch initialisiert");
+    DEBUG_PRINTLN("TouchManager: ✅ Touch initialisiert");
     DEBUG_PRINTF("TouchManager: CS=%d, IRQ=%d, Rotation=%d\n", TOUCH_CS, TOUCH_IRQ, rotation);
+    DEBUG_PRINTF("TouchManager: Kalibrierung: X=%d-%d, Y=%d-%d, Threshold=%d\n",
+                 calMinX, calMaxX, calMinY, calMaxY, pressureThreshold);
     
     return true;
 }
@@ -202,6 +210,44 @@ void TouchManager::setRotation(uint8_t rot) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+void TouchManager::loadCalibrationFromConfig(UserConfig* config) {
+    if (!config) {
+        DEBUG_PRINTLN("TouchManager: ⚠️ Config ist nullptr");
+        return;
+    }
+    
+    DEBUG_PRINTLN("TouchManager: Lade Kalibrierung aus Config...");
+    
+    calMinX = config->getTouchMinX();
+    calMaxX = config->getTouchMaxX();
+    calMinY = config->getTouchMinY();
+    calMaxY = config->getTouchMaxY();
+    pressureThreshold = config->getTouchThreshold();
+    
+    calibrated = true;
+    
+    DEBUG_PRINTF("TouchManager: ✅ Kalibrierung geladen: X=%d-%d, Y=%d-%d, Threshold=%d\n",
+                 calMinX, calMaxX, calMinY, calMaxY, pressureThreshold);
+}
+
+void TouchManager::saveCalibrationToConfig(UserConfig* config) {
+    if (!config) {
+        DEBUG_PRINTLN("TouchManager: ⚠️ Config ist nullptr");
+        return;
+    }
+    
+    DEBUG_PRINTLN("TouchManager: Speichere Kalibrierung in Config...");
+    
+    config->setTouchCalibration(calMinX, calMaxX, calMinY, calMaxY);
+    config->setTouchThreshold(pressureThreshold);
+    
+    DEBUG_PRINTLN("TouchManager: ✅ Kalibrierung gespeichert");
+}
+
 void TouchManager::setCalibration(int16_t minX, int16_t maxX, int16_t minY, int16_t maxY) {
     calMinX = minX;
     calMaxX = maxX;
@@ -225,6 +271,10 @@ void TouchManager::setThreshold(uint16_t threshold) {
     pressureThreshold = constrain(threshold, 0, 4095);
     DEBUG_PRINTF("TouchManager: Schwellwert gesetzt: %d\n", pressureThreshold);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool TouchManager::isPointInRect(int16_t x, int16_t y, int16_t rectX, int16_t rectY, int16_t rectW, int16_t rectH) {
     return (x >= rectX && x < rectX + rectW && 
@@ -269,6 +319,9 @@ void TouchManager::printTouchInfo() {
     DEBUG_PRINTF("\nRotation: %d\n", rotation);
     DEBUG_PRINTF("Display:  %dx%d\n", displayWidth, displayHeight);
     DEBUG_PRINTF("Schwelle: %d\n", pressureThreshold);
+    DEBUG_PRINTF("Kalibrierung:\n");
+    DEBUG_PRINTF("  X: %d - %d\n", calMinX, calMaxX);
+    DEBUG_PRINTF("  Y: %d - %d\n", calMinY, calMaxY);
     
     DEBUG_PRINTLN("═══════════════════════════════════════\n");
 }

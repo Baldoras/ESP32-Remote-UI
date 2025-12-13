@@ -14,8 +14,10 @@
 #ifndef BATTERY_MONITOR_H
 #define BATTERY_MONITOR_H
 
+#include "SDCardHandler.h"
+#include "Globals.h"
 #include <Arduino.h>
-#include "config.h"
+#include "setupConf.h"
 
 // Callback-Typen
 typedef void (*BatteryWarningCallback)(float voltage, uint8_t percent);

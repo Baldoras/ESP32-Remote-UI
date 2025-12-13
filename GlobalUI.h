@@ -23,7 +23,7 @@
 #include "UIButton.h"
 #include "BatteryMonitor.h"
 #include "PowerManager.h"
-#include "config.h"
+#include "setupConf.h"
 
 // Forward declaration
 class UIPageManager;

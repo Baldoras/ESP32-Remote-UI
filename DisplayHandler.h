@@ -17,9 +17,11 @@
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
-#include "config.h"
+#include "setupConf.h"
 #include "UIManager.h"
 #include "TouchManager.h"
+
+class UserConfig;
 
 class DisplayHandler {
 public:
@@ -37,7 +39,7 @@ public:
      * Display initialisieren
      * @return true bei Erfolg, false bei Fehler
      */
-    bool begin();
+    bool begin(UserConfig* config = nullptr);
 
     /**
      * UI-System aktivieren (nach Touch-Init)
@@ -154,8 +156,9 @@ private:
     
     /**
      * Backlight initialisieren
+     * @param brightness Start-Helligkeit (0-255)
      */
-    void initBacklight();
+    void initBacklight(uint8_t brightness);
 };
 
 #endif // DISPLAY_HANDLER_H

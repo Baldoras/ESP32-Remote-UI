@@ -5,13 +5,14 @@
  */
 
 #include "DisplayHandler.h"
+#include "UserConfig.h"
 #include <stdarg.h>
 
 DisplayHandler::DisplayHandler() 
     : ui(nullptr)
     , touchMgr(nullptr)
     , initialized(false)
-    , currentBrightness(BACKLIGHT_DEFAULT)
+    , currentBrightness(128)
 {
 }
 
@@ -23,7 +24,7 @@ DisplayHandler::~DisplayHandler() {
     }
 }
 
-bool DisplayHandler::begin() {
+bool DisplayHandler::begin(UserConfig* config) {
     DEBUG_PRINTLN("DisplayHandler: Initialisiere Display...");
     
     // ═══════════════════════════════════════════════════════════════
@@ -35,7 +36,14 @@ bool DisplayHandler::begin() {
     // ═══════════════════════════════════════════════════════════════
     // Backlight initialisieren und einschalten
     // ═══════════════════════════════════════════════════════════════
-    initBacklight();
+    // Helligkeit aus Config laden (falls verfügbar)
+    uint8_t brightness = 128;  // Fallback
+    if (config != nullptr) {
+        brightness = config->getBacklightDefault();
+        DEBUG_PRINTF("DisplayHandler: Lade Helligkeit aus Config: %d\n", brightness);
+    }
+
+    initBacklight(brightness);
     delay(100);
     
     // ═══════════════════════════════════════════════════════════════
@@ -94,7 +102,7 @@ void DisplayHandler::disableTouch() {
     DEBUG_PRINTLN("DisplayHandler: ✅ Touch CS inaktiv");
 }
 
-void DisplayHandler::initBacklight() {
+void DisplayHandler::initBacklight(uint8_t brightness) {
     DEBUG_PRINTLN("DisplayHandler: Initialisiere Backlight...");
     
     // GPIO als Output
@@ -104,6 +112,7 @@ void DisplayHandler::initBacklight() {
     ledcAttach(TFT_BL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RES);
     
     // Helligkeit setzen
+    currentBrightness = constrain(brightness, BACKLIGHT_MIN, BACKLIGHT_MAX);
     setBacklight(currentBrightness);
     
     DEBUG_PRINTF("DisplayHandler: ✅ Backlight initialisiert (Helligkeit: %d)\n", currentBrightness);

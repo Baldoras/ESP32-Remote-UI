@@ -28,7 +28,7 @@
 #include <freertos/semphr.h>
 #include <functional>
 #include <vector>
-#include "config.h"
+#include "setupConf.h"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KONFIGURATION

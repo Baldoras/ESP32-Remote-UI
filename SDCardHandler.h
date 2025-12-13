@@ -9,6 +9,8 @@
  * - Boot-Log, Battery-Log, ESP-NOW-Log, System-Log
  * - Automatisches Flush/Sync
  * - Thread-safe Operationen
+ * 
+ * REFACTORED: Config-Management entfernt - nur noch File I/O!
  */
 
 #ifndef SD_CARD_HANDLER_H
@@ -19,7 +21,7 @@
 #include <SPI.h>
 #include <FS.h>
 #include <ArduinoJson.h>
-#include "config.h"
+#include "setupConf.h"
 
 // Log-Dateinamen
 #define LOG_FILE_BOOT       "/boot.log"
@@ -27,33 +29,10 @@
 #define LOG_FILE_CONNECTION "/connection.log"
 #define LOG_FILE_ERROR      "/error.log"
 
-// Config-Datei
-#define CONFIG_FILE         "/config.conf"
-
 // Logging-Konfiguration
 #define LOG_BUFFER_SIZE     512     // JSON-Buffer Größe
 #define LOG_FLUSH_INTERVAL  5000    // Auto-Flush alle 5 Sekunden
 #define LOG_MAX_FILE_SIZE   1048576 // 1 MB - dann rotieren
-
-// Config-Struktur (nur einstellbare Parameter!)
-struct SDConfig {
-    // Display
-    uint8_t backlightDefault;       // Standard-Helligkeit (0-255)
-    
-    // Touch Calibration
-    int16_t touchMinX;
-    int16_t touchMaxX;
-    int16_t touchMinY;
-    int16_t touchMaxY;
-    uint16_t touchThreshold;
-    
-    // ESP-NOW
-    uint32_t espnowHeartbeatInterval;   // Heartbeat-Intervall in ms
-    uint32_t espnowTimeout;             // Timeout in ms
-    
-    // Debug
-    bool debugSerialEnabled;        // Serial Debug an/aus
-};
 
 class SDCardHandler {
 public:
@@ -92,30 +71,6 @@ public:
      * Gesamter Speicher in Bytes
      */
     uint64_t getTotalSpace();
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // CONFIG MANAGEMENT
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * Config laden (aus config.conf)
-     * @param config Config-Struktur
-     * @return true bei Erfolg
-     */
-    bool loadConfig(SDConfig& config);
-
-    /**
-     * Config speichern (nach config.conf)
-     * @param config Config-Struktur
-     * @return true bei Erfolg
-     */
-    bool saveConfig(const SDConfig& config);
-
-    /**
-     * Default-Config erstellen (wenn nicht vorhanden)
-     * @return true bei Erfolg
-     */
-    bool createDefaultConfig();
 
     // ═══════════════════════════════════════════════════════════════════════
     // BOOT LOG (Setup-Methode)
@@ -206,7 +161,7 @@ public:
     bool logCrash(uint32_t pc, uint32_t excvaddr, uint32_t exccause, const char* stackTrace = nullptr);
 
     // ═══════════════════════════════════════════════════════════════════════
-    // FILE OPERATIONEN
+    // FILE OPERATIONEN (Generisch - für alle Zwecke)
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
@@ -226,13 +181,20 @@ public:
     bool appendFile(const char* path, const char* data);
 
     /**
-     * Datei lesen
+     * Datei lesen (kompletter Inhalt)
      * @param path Dateipfad
      * @param buffer Buffer für Daten
      * @param maxLen Maximale Länge
      * @return Anzahl gelesener Bytes, -1 bei Fehler
      */
     int readFile(const char* path, char* buffer, size_t maxLen);
+
+    /**
+     * Datei lesen (als String)
+     * @param path Dateipfad
+     * @return Dateiinhalt als String (leer bei Fehler)
+     */
+    String readFileString(const char* path);
 
     /**
      * Datei löschen
@@ -254,6 +216,14 @@ public:
      * @return Größe in Bytes, 0 bei Fehler
      */
     size_t getFileSize(const char* path);
+
+    /**
+     * Datei umbenennen/verschieben
+     * @param oldPath Alter Pfad
+     * @param newPath Neuer Pfad
+     * @return true bei Erfolg
+     */
+    bool renameFile(const char* oldPath, const char* newPath);
 
     /**
      * Alle Log-Dateien löschen

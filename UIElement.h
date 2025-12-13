@@ -10,7 +10,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include "UIEventHandler.h"
-#include "config.h"
+#include "setupConf.h"
 
 // Element-Style Struktur
 struct ElementStyle {

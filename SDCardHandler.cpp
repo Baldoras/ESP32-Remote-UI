@@ -1,7 +1,7 @@
 /**
  * SDCardHandler.cpp
  * 
- * Implementation des SD-Karten Handlers mit JSON-Logging
+ * Implementation des SD-Karten Handlers (nur File I/O + Logging)
  */
 
 #include "SDCardHandler.h"
@@ -80,125 +80,13 @@ uint64_t SDCardHandler::getTotalSpace() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CONFIG MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════════════
-
-bool SDCardHandler::loadConfig(SDConfig& config) {
-    if (!mounted) return false;
-    
-    if (!fileExists(CONFIG_FILE)) {
-        DEBUG_PRINTLN("SDCardHandler: config.conf nicht gefunden, erstelle Default...");
-        createDefaultConfig();
-        return loadConfig(config);  // Rekursiv laden
-    }
-    
-    File file = SD.open(CONFIG_FILE, FILE_READ);
-    if (!file) {
-        DEBUG_PRINTLN("SDCardHandler: ❌ Kann config.conf nicht öffnen!");
-        return false;
-    }
-    
-    // JSON parsen (ArduinoJson V7)
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, file);
-    file.close();
-    
-    if (error) {
-        DEBUG_PRINTF("SDCardHandler: ❌ JSON Parse-Fehler: %s\n", error.c_str());
-        return false;
-    }
-    
-    // Display
-    config.backlightDefault = doc["backlight_default"] | BACKLIGHT_DEFAULT;
-    
-    // Touch
-    config.touchMinX = doc["touch_min_x"] | TOUCH_MIN_X;
-    config.touchMaxX = doc["touch_max_x"] | TOUCH_MAX_X;
-    config.touchMinY = doc["touch_min_y"] | TOUCH_MIN_Y;
-    config.touchMaxY = doc["touch_max_y"] | TOUCH_MAX_Y;
-    config.touchThreshold = doc["touch_threshold"] | TOUCH_THRESHOLD;
-    
-    // ESP-NOW
-    config.espnowHeartbeatInterval = doc["espnow_heartbeat"] | ESPNOW_HEARTBEAT_INTERVAL;
-    config.espnowTimeout = doc["espnow_timeout"] | ESPNOW_TIMEOUT_MS;
-    
-    // Debug
-    config.debugSerialEnabled = doc["debug_serial"] | DEBUG_SERIAL;
-    
-    DEBUG_PRINTLN("SDCardHandler: ✅ Config geladen");
-    return true;
-}
-
-bool SDCardHandler::saveConfig(const SDConfig& config) {
-    if (!mounted) return false;
-    
-    JsonDocument doc;  // ArduinoJson V7
-    
-    // Display
-    doc["backlight_default"] = config.backlightDefault;
-    
-    // Touch
-    doc["touch_min_x"] = config.touchMinX;
-    doc["touch_max_x"] = config.touchMaxX;
-    doc["touch_min_y"] = config.touchMinY;
-    doc["touch_max_y"] = config.touchMaxY;
-    doc["touch_threshold"] = config.touchThreshold;
-    
-    // ESP-NOW
-    doc["espnow_heartbeat"] = config.espnowHeartbeatInterval;
-    doc["espnow_timeout"] = config.espnowTimeout;
-    
-    // Debug
-    doc["debug_serial"] = config.debugSerialEnabled;
-    
-    // Datei schreiben
-    File file = SD.open(CONFIG_FILE, FILE_WRITE);
-    if (!file) {
-        DEBUG_PRINTLN("SDCardHandler: ❌ Kann config.conf nicht schreiben!");
-        return false;
-    }
-    
-    serializeJsonPretty(doc, file);
-    file.close();
-    
-    DEBUG_PRINTLN("SDCardHandler: ✅ Config gespeichert");
-    return true;
-}
-
-bool SDCardHandler::createDefaultConfig() {
-    if (!mounted) return false;
-    
-    SDConfig defaultConfig;
-    
-    // Display
-    defaultConfig.backlightDefault = BACKLIGHT_DEFAULT;
-    
-    // Touch
-    defaultConfig.touchMinX = TOUCH_MIN_X;
-    defaultConfig.touchMaxX = TOUCH_MAX_X;
-    defaultConfig.touchMinY = TOUCH_MIN_Y;
-    defaultConfig.touchMaxY = TOUCH_MAX_Y;
-    defaultConfig.touchThreshold = TOUCH_THRESHOLD;
-    
-    // ESP-NOW
-    defaultConfig.espnowHeartbeatInterval = ESPNOW_HEARTBEAT_INTERVAL;
-    defaultConfig.espnowTimeout = ESPNOW_TIMEOUT_MS;
-    
-    // Debug
-    defaultConfig.debugSerialEnabled = DEBUG_SERIAL;
-    
-    DEBUG_PRINTLN("SDCardHandler: Erstelle Default-Config...");
-    return saveConfig(defaultConfig);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// BOOT LOG (Setup-Methode)
+// BOOT LOG
 // ═══════════════════════════════════════════════════════════════════════════
 
 bool SDCardHandler::logBootStart(const char* reason, uint32_t freeHeap, const char* version) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // Lokal statt Member
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "boot_start";
@@ -215,7 +103,7 @@ bool SDCardHandler::logBootStart(const char* reason, uint32_t freeHeap, const ch
 bool SDCardHandler::logSetupStep(const char* module, bool success, const char* message) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "setup_step";
@@ -232,7 +120,7 @@ bool SDCardHandler::logSetupStep(const char* module, bool success, const char* m
 bool SDCardHandler::logBootComplete(uint32_t totalTimeMs, bool success) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "boot_complete";
@@ -250,11 +138,11 @@ bool SDCardHandler::logBootComplete(uint32_t totalTimeMs, bool success) {
 bool SDCardHandler::logBattery(float voltage, uint8_t percent, bool isLow, bool isCritical) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "battery";
-    doc["voltage"] = serialized(String(voltage, 2));  // 2 Dezimalstellen
+    doc["voltage"] = serialized(String(voltage, 2));
     doc["percent"] = percent;
     doc["is_low"] = isLow;
     doc["is_critical"] = isCritical;
@@ -263,13 +151,13 @@ bool SDCardHandler::logBattery(float voltage, uint8_t percent, bool isLow, bool 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CONNECTION LOG (ESP-NOW)
+// CONNECTION LOG
 // ═══════════════════════════════════════════════════════════════════════════
 
 bool SDCardHandler::logConnection(const char* peerMac, const char* event, int8_t rssi) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "connection_event";
@@ -288,7 +176,7 @@ bool SDCardHandler::logConnectionStats(const char* peerMac, uint32_t packetsSent
                                         uint16_t sendRate, uint16_t receiveRate, int8_t avgRssi) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "connection_stats";
@@ -300,7 +188,6 @@ bool SDCardHandler::logConnectionStats(const char* peerMac, uint32_t packetsSent
     doc["receive_rate"] = receiveRate;
     doc["avg_rssi"] = avgRssi;
     
-    // Packet-Loss Rate berechnen
     if (packetsSent > 0) {
         float lossRate = (packetsLost * 100.0f) / packetsSent;
         doc["loss_rate"] = serialized(String(lossRate, 2));
@@ -310,13 +197,13 @@ bool SDCardHandler::logConnectionStats(const char* peerMac, uint32_t packetsSent
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ERROR LOG (Exceptions & Errors)
+// ERROR LOG
 // ═══════════════════════════════════════════════════════════════════════════
 
 bool SDCardHandler::logError(const char* module, int errorCode, const char* message, uint32_t freeHeap) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "error";
@@ -336,7 +223,7 @@ bool SDCardHandler::logError(const char* module, int errorCode, const char* mess
 bool SDCardHandler::logCrash(uint32_t pc, uint32_t excvaddr, uint32_t exccause, const char* stackTrace) {
     if (!mounted) return false;
     
-    JsonDocument doc;  // V7 Local
+    JsonDocument doc;
     
     doc["timestamp"] = getTimestamp();
     doc["type"] = "crash";
@@ -357,7 +244,7 @@ bool SDCardHandler::logCrash(uint32_t pc, uint32_t excvaddr, uint32_t exccause, 
 // ═══════════════════════════════════════════════════════════════════════════
 
 bool SDCardHandler::writeFile(const char* path, const char* data) {
-    if (!mounted) return false;
+    if (!mounted || !path || !data) return false;
     
     File file = SD.open(path, FILE_WRITE);
     if (!file) {
@@ -374,7 +261,7 @@ bool SDCardHandler::writeFile(const char* path, const char* data) {
 }
 
 bool SDCardHandler::appendFile(const char* path, const char* data) {
-    if (!mounted) return false;
+    if (!mounted || !path || !data) return false;
     
     File file = SD.open(path, FILE_APPEND);
     if (!file) {
@@ -391,7 +278,7 @@ bool SDCardHandler::appendFile(const char* path, const char* data) {
 }
 
 int SDCardHandler::readFile(const char* path, char* buffer, size_t maxLen) {
-    if (!mounted || !buffer) return -1;
+    if (!mounted || !path || !buffer) return -1;
     
     File file = SD.open(path, FILE_READ);
     if (!file) {
@@ -408,8 +295,23 @@ int SDCardHandler::readFile(const char* path, char* buffer, size_t maxLen) {
     return bytesRead;
 }
 
+String SDCardHandler::readFileString(const char* path) {
+    if (!mounted || !path) return "";
+    
+    File file = SD.open(path, FILE_READ);
+    if (!file) {
+        DEBUG_PRINTF("SDCardHandler: ❌ Kann Datei nicht lesen: %s\n", path);
+        return "";
+    }
+    
+    String content = file.readString();
+    file.close();
+    
+    return content;
+}
+
 bool SDCardHandler::deleteFile(const char* path) {
-    if (!mounted) return false;
+    if (!mounted || !path) return false;
     
     if (!SD.exists(path)) {
         DEBUG_PRINTF("SDCardHandler: Datei existiert nicht: %s\n", path);
@@ -428,12 +330,12 @@ bool SDCardHandler::deleteFile(const char* path) {
 }
 
 bool SDCardHandler::fileExists(const char* path) {
-    if (!mounted) return false;
+    if (!mounted || !path) return false;
     return SD.exists(path);
 }
 
 size_t SDCardHandler::getFileSize(const char* path) {
-    if (!mounted) return 0;
+    if (!mounted || !path) return 0;
     
     File file = SD.open(path, FILE_READ);
     if (!file) return 0;
@@ -442,6 +344,25 @@ size_t SDCardHandler::getFileSize(const char* path) {
     file.close();
     
     return size;
+}
+
+bool SDCardHandler::renameFile(const char* oldPath, const char* newPath) {
+    if (!mounted || !oldPath || !newPath) return false;
+    
+    if (!SD.exists(oldPath)) {
+        DEBUG_PRINTF("SDCardHandler: Datei existiert nicht: %s\n", oldPath);
+        return false;
+    }
+    
+    bool success = SD.rename(oldPath, newPath);
+    
+    if (success) {
+        DEBUG_PRINTF("SDCardHandler: ✅ Datei umbenannt: %s → %s\n", oldPath, newPath);
+    } else {
+        DEBUG_PRINTF("SDCardHandler: ❌ Umbenennen fehlgeschlagen\n");
+    }
+    
+    return success;
 }
 
 void SDCardHandler::clearAllLogs() {
@@ -459,9 +380,6 @@ void SDCardHandler::clearAllLogs() {
 
 void SDCardHandler::flush() {
     if (!mounted) return;
-    
-    // SD.flush() - falls vorhanden in neueren Libs
-    // Alternativ: Dateien explizit schließen/öffnen
     lastFlush = millis();
 }
 
@@ -507,15 +425,6 @@ void SDCardHandler::printInfo() {
                 DEBUG_PRINTF("  %s: [not exist]\n", logFiles[i]);
             }
         }
-        
-        // Config-Datei
-        DEBUG_PRINTLN("\n─── Config File ───────────────────────────────");
-        if (fileExists(CONFIG_FILE)) {
-            size_t size = getFileSize(CONFIG_FILE);
-            DEBUG_PRINTF("  %s: %.2f KB\n", CONFIG_FILE, size / 1024.0);
-        } else {
-            DEBUG_PRINTF("  %s: [not exist]\n", CONFIG_FILE);
-        }
     }
     
     DEBUG_PRINTLN("═══════════════════════════════════════════════\n");
@@ -528,15 +437,12 @@ void SDCardHandler::printInfo() {
 bool SDCardHandler::writeJsonLog(const char* logFile, JsonDocument& doc) {
     if (!mounted) return false;
     
-    // JSON serialisieren
     String jsonString;
     serializeJson(doc, jsonString);
-    jsonString += "\n";  // Newline für Zeilen-basiertes Logging
+    jsonString += "\n";
     
-    // Datei rotieren falls nötig
     rotateLogIfNeeded(logFile);
     
-    // An Datei anhängen
     bool success = appendFile(logFile, jsonString.c_str());
     
     if (success) {
@@ -547,7 +453,6 @@ bool SDCardHandler::writeJsonLog(const char* logFile, JsonDocument& doc) {
 }
 
 String SDCardHandler::getTimestamp() {
-    // Uptime in Millisekunden als Timestamp
     return String(millis());
 }
 
@@ -558,15 +463,12 @@ void SDCardHandler::rotateLogIfNeeded(const char* path) {
         DEBUG_PRINTF("SDCardHandler: Rotiere Log-Datei: %s (%.2f KB)\n", 
                      path, fileSize / 1024.0);
         
-        // Backup-Name erstellen (z.B. boot.log -> boot.log.1)
         String backupPath = String(path) + ".1";
         
-        // Altes Backup löschen
         if (fileExists(backupPath.c_str())) {
             deleteFile(backupPath.c_str());
         }
         
-        // Aktuelle Datei zu Backup umbenennen
         SD.rename(path, backupPath.c_str());
         
         DEBUG_PRINTF("SDCardHandler: ✅ Log rotiert zu: %s\n", backupPath.c_str());

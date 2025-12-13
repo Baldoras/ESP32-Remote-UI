@@ -16,7 +16,7 @@
 #define JOYSTICK_HANDLER_H
 
 #include <Arduino.h>
-#include "config.h"
+#include "setupConf.h"
 
 class JoystickHandler {
 public:

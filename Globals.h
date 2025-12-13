@@ -1,26 +1,32 @@
-/*
-*
-* Global object definition
-*
-*/
+/**
+ * Globals.h
+ * 
+ * Globale Objekt-Definitionen
+ * 
+ * WICHTIG: Nur Forward Declarations hier!
+ * Includes nur in Globals.cpp
+ */
 
 #pragma once
 
-#include "DisplayHandler.h"
-#include "UIPageManager.h"
-#include "BatteryMonitor.h"
-#include "JoystickHandler.h"
-#include "SDCardHandler.h"
-#include "TouchManager.h"
-#include "PowerManager.h"
-#include "config.h"
+// Forward Declarations (keine Includes!)
+class DisplayHandler;
+class UIPageManager;
+class BatteryMonitor;
+class JoystickHandler;
+class SDCardHandler;
+class TouchManager;
+class UserConfig;
+class PowerManager;
 
+// Globale Objekte (extern)
 extern DisplayHandler display;
 extern UIPageManager pageManager;
 extern BatteryMonitor battery;
 extern JoystickHandler joystick;
 extern SDCardHandler sdCard;
 extern TouchManager touch;
+extern UserConfig userConfig;
 extern PowerManager powerMgr;
 
 // Seiten-IDs

@@ -7,7 +7,7 @@
  * - Optional (Pointer-basiert)
  * - Touch-Erkennung mit Zustandsverwaltung
  * - Koordinaten-Mapping auf Display
- * - Kalibrierung
+ * - Kalibrierung (via UserConfig)
  * - Rotation-Unterstützung
  * 
  * WICHTIG: Touch ist OPTIONAL!
@@ -21,7 +21,10 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
-#include "config.h"
+#include "setupConf.h"
+
+// Forward declaration
+class UserConfig;
 
 // Touch-Punkt Struktur
 struct TouchPoint {
@@ -50,9 +53,10 @@ public:
     /**
      * Touch initialisieren
      * @param spi SPI-Bus Pointer (HSPI)
+     * @param config UserConfig Pointer (optional für Kalibrierung)
      * @return true bei Erfolg, false bei Fehler
      */
-    bool begin(SPIClass* spi);
+    bool begin(SPIClass* spi, UserConfig* config = nullptr);
 
     /**
      * Touch deaktivieren und Speicher freigeben
@@ -122,6 +126,18 @@ public:
      * @param rotation Rotation (0-3)
      */
     void setRotation(uint8_t rotation);
+
+    /**
+     * Kalibrierung aus UserConfig laden
+     * @param config UserConfig Pointer
+     */
+    void loadCalibrationFromConfig(UserConfig* config);
+
+    /**
+     * Aktuelle Kalibrierung in UserConfig speichern
+     * @param config UserConfig Pointer
+     */
+    void saveCalibrationToConfig(UserConfig* config);
 
     /**
      * Kalibrier-Werte manuell setzen

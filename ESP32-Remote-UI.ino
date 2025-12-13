@@ -1,37 +1,22 @@
 /**
  * ESP32-Remote-UI.ino
  * 
- * Fernsteuerung mit ESP-NOW und Multi-Page UI + SD-Card Logging + PowerManager
- * 
+ * Fernsteuerung mit ESP-NOW und Multi-Page UI + SD-Card Logging + Config-System
  */
 
-#include "Globals.h"
 #include "TouchManager.h"
 #include "BatteryMonitor.h"
 #include "SDCardHandler.h"
 #include "JoystickHandler.h"
-#include "PowerManager.h"
 #include "GlobalUI.h"
 #include "UIPageManager.h"
 #include "ESPNowManager.h"
+#include "UserConfig.h"
+#include "Globals.h"
 #include "Pages.cpp"
-
-// Hardware
-DisplayHandler display;
-TouchManager touch;
-BatteryMonitor battery;
-SDCardHandler sdCard;
-JoystickHandler joystick;
-PowerManager powerMgr;
-
-// Config (aus SD-Karte geladen)
-SDConfig config;
 
 // GlobalUI (Header/Footer/Battery zentral)
 GlobalUI globalUI;
-
-// Page Manager
-UIPageManager pageManager;
 
 // Timing für Logging
 unsigned long lastBatteryLog = 0;
@@ -53,7 +38,7 @@ void setup() {
     
     DEBUG_PRINTLN("\n╔════════════════════════════════════════╗");
     DEBUG_PRINTLN("║   ESP32-S3 Remote Control Startup      ║");
-    DEBUG_PRINTLN("║   WITH SD-CARD LOGGING + POWERMANAGER  ║");
+    DEBUG_PRINTLN("║   WITH CONFIG SYSTEM                   ║");
     DEBUG_PRINTLN("╚════════════════════════════════════════╝\n");
     
     // ═══════════════════════════════════════════════════════════════
@@ -63,39 +48,36 @@ void setup() {
     bool sdAvailable = sdCard.begin();
 
     if (sdAvailable) {
-        Serial.println("  SD-Card OK");
+        Serial.println("  ✅ SD-Card OK");
         sdCard.logBootStart("PowerOn", ESP.getFreeHeap(), FIRMWARE_VERSION);
     } else {
-        Serial.println("  SD-Card N/A (using defaults)");
+        Serial.println("  ⚠️ SD-Card N/A (using defaults)");
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // CONFIG LADEN (Defaults aus config.h, optional Override aus SD)
+    // CONFIG LADEN
     // ═══════════════════════════════════════════════════════════════
+    Serial.println("→ Config...");
     
-    // 1. Defaults aus config.h laden
-    config.backlightDefault = BACKLIGHT_DEFAULT;
-    config.touchMinX = TOUCH_MIN_X;
-    config.touchMaxX = TOUCH_MAX_X;
-    config.touchMinY = TOUCH_MIN_Y;
-    config.touchMaxY = TOUCH_MAX_Y;
-    config.touchThreshold = TOUCH_THRESHOLD;
-    config.espnowHeartbeatInterval = ESPNOW_HEARTBEAT_INTERVAL;
-    config.espnowTimeout = ESPNOW_TIMEOUT_MS;
-    config.debugSerialEnabled = DEBUG_SERIAL;
+    // UserConfig initialisieren
+    userConfig.init("/config.json", &sdCard);
     
-    Serial.println("  Config defaults loaded (config.h)");
-    
-    // 2. Optional: Wenn SD-Karte verfügbar → Override aus config.conf
-    if (sdCard.isAvailable()) {
-        if (sdCard.loadConfig(config)) {
-            Serial.println("  Config override loaded (config.conf)");
+    if (sdAvailable && userConfig.isStorageAvailable()) {
+        // Config von SD-Card laden
+        if (userConfig.load()) {
+            Serial.println("  ✅ Config geladen (SD-Card)");
         } else {
-            Serial.println("  No config.conf, using defaults");
+            Serial.println("  ⚠️ Config laden fehlgeschlagen - verwende Defaults");
+            userConfig.reset();  // Defaults laden
         }
     } else {
-        Serial.println("  No SD-Card, using defaults");
+        // Keine SD-Card - Defaults verwenden
+        Serial.println("  ℹ️ Verwende Default-Config (keine SD-Card)");
+        userConfig.reset();
     }
+    
+    // Config-Info ausgeben
+    userConfig.printInfo();
     
     // ═══════════════════════════════════════════════════════════════
     // GPIO
@@ -109,23 +91,28 @@ void setup() {
     // Backlight
     pinMode(TFT_BL, OUTPUT);
     
-    Serial.println("  GPIO OK");
-    sdCard.logSetupStep("GPIO", true);
+    Serial.println("  ✅ GPIO OK");
+    if (sdAvailable) sdCard.logSetupStep("GPIO", true);
     
     // ═══════════════════════════════════════════════════════════════
     // Display
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Display...");
-    if (!display.begin()) {
-        Serial.println("  Display init failed!");
-        sdCard.logSetupStep("Display", false, "Init failed");
-        sdCard.logError("Display", ERR_DISPLAY_INIT, "begin() failed");
+    if (!display.begin(&userConfig)) {
+        Serial.println("  ❌ Display init failed!");
+        if (sdAvailable) {
+            sdCard.logSetupStep("Display", false, "Init failed");
+            sdCard.logError("Display", ERR_DISPLAY_INIT, "begin() failed");
+        }
         while (1) delay(100);
     }
-    display.setBacklight(BACKLIGHT_DEFAULT);  // Config
+    
+    // Backlight aus Config
+    display.setBacklight(userConfig.getBacklightDefault());
     display.setBacklightOn(true);
-    Serial.println("  Display OK");
-    sdCard.logSetupStep("Display", true, "480x320 @ Rotation 3");
+    
+    Serial.println("  ✅ Display OK");
+    if (sdAvailable) sdCard.logSetupStep("Display", true, "480x320 @ Rotation 3");
     
     // ═══════════════════════════════════════════════════════════════
     // Touch
@@ -133,24 +120,29 @@ void setup() {
     Serial.println("→ Touch...");
     SPIClass* hspi = &display.getTft().getSPIinstance();
 
-    if (touch.begin(hspi)) {
-        Serial.println("  Touch OK");
+    if (touch.begin(hspi, &userConfig)) {
+        Serial.println("  ✅ Touch OK");
         
         // Kalibrierung aus Config
-        touch.setCalibration(config.touchMinX, config.touchMaxX, 
-                            config.touchMinY, config.touchMaxY);
-        touch.setThreshold(config.touchThreshold);
+        touch.setCalibration(
+            userConfig.getTouchMinX(),
+            userConfig.getTouchMaxX(), 
+            userConfig.getTouchMinY(),
+            userConfig.getTouchMaxY()
+        );
+        touch.setThreshold(userConfig.getTouchThreshold());
+        touch.setRotation(userConfig.getTouchRotation());
         
-        Serial.printf("  Calibration: X=%d-%d, Y=%d-%d, Threshold=%d\n",
-                     config.touchMinX, config.touchMaxX,
-                     config.touchMinY, config.touchMaxY,
-                     config.touchThreshold);
+        Serial.printf("  Calibration: X=%d-%d, Y=%d-%d, Threshold=%d, Rotation=%d\n",
+                     userConfig.getTouchMinX(), userConfig.getTouchMaxX(),
+                     userConfig.getTouchMinY(), userConfig.getTouchMaxY(),
+                     userConfig.getTouchThreshold(), userConfig.getTouchRotation());
         
         display.enableUI(&touch);
-        sdCard.logSetupStep("Touch", true, "XPT2046 calibrated");
+        if (sdAvailable) sdCard.logSetupStep("Touch", true, "XPT2046 calibrated");
     } else {
-        Serial.println("  Touch N/A");
-        sdCard.logSetupStep("Touch", false, "XPT2046 not responding");
+        Serial.println("  ⚠️ Touch N/A");
+        if (sdAvailable) sdCard.logSetupStep("Touch", false, "XPT2046 not responding");
     }
     
     // ═══════════════════════════════════════════════════════════════
@@ -158,64 +150,50 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Battery...");
     if (battery.begin()) {
-        Serial.println("  Battery OK");
-        sdCard.logSetupStep("Battery", true);
-        
-        // Initial-Status loggen
-        sdCard.logBattery(battery.getVoltage(), battery.getPercent(), 
-                         battery.isLow(), battery.isCritical());
+        Serial.println("  ✅ Battery OK");
+        if (sdAvailable) {
+            sdCard.logSetupStep("Battery", true);
+            sdCard.logBattery(battery.getVoltage(), battery.getPercent(), 
+                             battery.isLow(), battery.isCritical());
+        }
     } else {
-        sdCard.logSetupStep("Battery", false, "Sensor error");
-        sdCard.logError("Battery", ERR_BATTERY_INIT, "begin() failed");
+        if (sdAvailable) {
+            sdCard.logSetupStep("Battery", false, "Sensor error");
+            sdCard.logError("Battery", ERR_BATTERY_INIT, "begin() failed");
+        }
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // Joystick initialisieren (nach Battery Monitor, vor ESP-NOW)
+    // Joystick
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Joystick...");
     
     if (joystick.begin()) {
-        Serial.println("  Joystick OK");
-        joystick.setDeadzone(10);  // 10% Deadzone
-        joystick.setUpdateInterval(50);  // 50ms = 20Hz
+        Serial.println("  ✅ Joystick OK");
+        
+        // Parameter aus Config
+        joystick.setDeadzone(userConfig.getJoyDeadzone());
+        joystick.setUpdateInterval(userConfig.getJoyUpdateInterval());
+        joystick.setInvertX(userConfig.getJoyInvertX());
+        joystick.setInvertY(userConfig.getJoyInvertY());
+        
+        // Kalibrierung aus Config
+        joystick.setCalibration(0, 
+            userConfig.getJoyCalXMin(),
+            userConfig.getJoyCalXCenter(),
+            userConfig.getJoyCalXMax()
+        );
+        joystick.setCalibration(1,
+            userConfig.getJoyCalYMin(),
+            userConfig.getJoyCalYCenter(),
+            userConfig.getJoyCalYMax()
+        );
+        
         joystick.printInfo();
-        sdCard.logSetupStep("Joystick", true);
+        if (sdAvailable) sdCard.logSetupStep("Joystick", true);
     } else {
-        Serial.println("  Joystick init failed!");
-        sdCard.logSetupStep("Joystick", false, "Init failed");
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PowerManager
-    // ═══════════════════════════════════════════════════════════════
-    Serial.println("→ PowerManager...");
-    if (powerMgr.begin(&battery, &display)) {
-        Serial.println("  PowerManager OK");
-        
-        // Auto-Sleep bei kritischer Batterie aktivieren (Wake via Touch)
-        powerMgr.setAutoSleepOnCritical(true, WakeSource::TOUCH);
-        
-        // Before-Sleep Callback: SD-Karte flushen
-        powerMgr.setBeforeSleepCallback([]() {
-            DEBUG_PRINTLN("PowerManager: Before-Sleep Callback...");
-            
-            // SD-Karte flushen (letzte Daten schreiben)
-            if (sdCard.isAvailable()) {
-                sdCard.flush();
-                DEBUG_PRINTLN("  SD-Card flushed");
-            }
-            
-            DEBUG_PRINTLN("  Callback complete");
-        });
-        
-        // Wake-Up Grund ausgeben
-        String wakeReason = powerMgr.getWakeupReason();
-        Serial.printf("  Wake-Up: %s\n", wakeReason.c_str());
-        
-        sdCard.logSetupStep("PowerManager", true, wakeReason.c_str());
-    } else {
-        Serial.println("  PowerManager init failed!");
-        sdCard.logSetupStep("PowerManager", false, "Init failed");
+        Serial.println("  ❌ Joystick init failed!");
+        if (sdAvailable) sdCard.logSetupStep("Joystick", false);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -225,36 +203,44 @@ void setup() {
     EspNowManager& espnow = EspNowManager::getInstance();
 
     if (espnow.begin(ESPNOW_CHANNEL)) {
-        Serial.println("  ESP-NOW OK");
+        Serial.println("  ✅ ESP-NOW OK");
         Serial.printf("  MAC: %s\n", espnow.getOwnMacString().c_str());
         
-        // Heartbeat aus Config
-        espnow.setHeartbeat(true, config.espnowHeartbeatInterval);
-        espnow.setTimeout(config.espnowTimeout);
+        // Parameter aus Config
+        espnow.setHeartbeat(true, userConfig.getEspnowHeartbeat());
+        espnow.setTimeout(userConfig.getEspnowTimeout());
         
-        sdCard.logSetupStep("ESP-NOW", true, espnow.getOwnMacString().c_str());
+        Serial.printf("  Heartbeat: %dms, Timeout: %dms\n",
+                     userConfig.getEspnowHeartbeat(),
+                     userConfig.getEspnowTimeout());
+        
+        if (sdAvailable) sdCard.logSetupStep("ESP-NOW", true, espnow.getOwnMacString().c_str());
         
         // Events für Logging registrieren
-        espnow.onEvent(EspNowEvent::PEER_CONNECTED, [](EspNowEventData* data) {
-            String mac = EspNowManager::macToString(data->mac);
-            sdCard.logConnection(mac.c_str(), "connected");
-            Serial.printf("ESP-NOW: Peer %s connected\n", mac.c_str());
-        });
-        
-        espnow.onEvent(EspNowEvent::PEER_DISCONNECTED, [](EspNowEventData* data) {
-            String mac = EspNowManager::macToString(data->mac);
-            sdCard.logConnection(mac.c_str(), "disconnected");
-            Serial.printf("ESP-NOW: Peer %s disconnected\n", mac.c_str());
-        });
-        
-        espnow.onEvent(EspNowEvent::HEARTBEAT_TIMEOUT, [](EspNowEventData* data) {
-            String mac = EspNowManager::macToString(data->mac);
-            sdCard.logConnection(mac.c_str(), "timeout");
-            Serial.printf("ESP-NOW: Peer %s timeout\n", mac.c_str());
-        });
+        if (sdAvailable) {
+            espnow.onEvent(EspNowEvent::PEER_CONNECTED, [](EspNowEventData* data) {
+                String mac = EspNowManager::macToString(data->mac);
+                sdCard.logConnection(mac.c_str(), "connected");
+                Serial.printf("ESP-NOW: Peer %s connected\n", mac.c_str());
+            });
+            
+            espnow.onEvent(EspNowEvent::PEER_DISCONNECTED, [](EspNowEventData* data) {
+                String mac = EspNowManager::macToString(data->mac);
+                sdCard.logConnection(mac.c_str(), "disconnected");
+                Serial.printf("ESP-NOW: Peer %s disconnected\n", mac.c_str());
+            });
+            
+            espnow.onEvent(EspNowEvent::HEARTBEAT_TIMEOUT, [](EspNowEventData* data) {
+                String mac = EspNowManager::macToString(data->mac);
+                sdCard.logConnection(mac.c_str(), "timeout");
+                Serial.printf("ESP-NOW: Peer %s timeout\n", mac.c_str());
+            });
+        }
     } else {
-        sdCard.logSetupStep("ESP-NOW", false, "WiFi init error");
-        sdCard.logError("ESP-NOW", 3, "esp_now_init() failed");
+        if (sdAvailable) {
+            sdCard.logSetupStep("ESP-NOW", false, "WiFi init error");
+            sdCard.logError("ESP-NOW", 3, "esp_now_init() failed");
+        }
     }
     
     // ═══════════════════════════════════════════════════════════════
@@ -265,13 +251,13 @@ void setup() {
     TFT_eSPI* tft = &display.getTft();
 
     if (!globalUI.init(ui, tft, &battery, &powerMgr)) {
-        Serial.println("  GlobalUI failed!");
-        sdCard.logSetupStep("GlobalUI", false, "Init error");
+        Serial.println("  ❌ GlobalUI failed!");
+        if (sdAvailable) sdCard.logSetupStep("GlobalUI", false, "Init error");
         while (1) delay(100);
     }
 
-    Serial.println("  GlobalUI OK");
-    sdCard.logSetupStep("GlobalUI", true);
+    Serial.println("  ✅ GlobalUI OK");
+    if (sdAvailable) sdCard.logSetupStep("GlobalUI", true);
     
     globalUI.setPageManager(&pageManager);
     
@@ -296,8 +282,11 @@ void setup() {
     infoPage->setGlobalUI(&globalUI);
     infoPage->setPageManager(&pageManager);
     
-    Serial.println("  Pages created");
-    sdCard.logSetupStep("UI-Pages", true, "5 pages created");
+    // Peer MAC aus Config an ConnectionPage übergeben
+    connectionPage->setPeerMac(userConfig.getEspnowPeerMac());
+    
+    Serial.println("  ✅ Pages created");
+    if (sdAvailable) sdCard.logSetupStep("UI-Pages", true, "5 pages created");
     
     // ═══════════════════════════════════════════════════════════════
     // Pages registrieren
@@ -308,7 +297,7 @@ void setup() {
     pageManager.addPage(connectionPage, PAGE_CONNECTION);
     pageManager.addPage(settingsPage, PAGE_SETTINGS);
     pageManager.addPage(infoPage, PAGE_INFO);
-    Serial.printf("  %d Pages registered\n", pageManager.getPageCount());
+    Serial.printf("  ✅ %d Pages registered\n", pageManager.getPageCount());
     
     // ═══════════════════════════════════════════════════════════════
     // Home-Page anzeigen
@@ -323,11 +312,17 @@ void setup() {
     display.setBacklightOn(true);
 
     Serial.println();
-    Serial.println("Setup complete!");
+    Serial.println("✅ Setup complete!");
     Serial.printf("   Setup-Zeit: %lu ms\n", setupTime);
     Serial.println();
     
-    sdCard.logBootComplete(setupTime, true);
+    if (sdAvailable) sdCard.logBootComplete(setupTime, true);
+    
+    // Config dirty? -> Speichern
+    if (userConfig.isDirty()) {
+        Serial.println("Config geändert - speichere...");
+        userConfig.save();
+    }
 }
 
 void loop() {
@@ -360,11 +355,6 @@ void loop() {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // PowerManager (Auto-Sleep Check)
-    // ═══════════════════════════════════════════════════════════════
-    powerMgr.update();
-    
-    // ═══════════════════════════════════════════════════════════════
     // Touch
     // ═══════════════════════════════════════════════════════════════
     if (touch.isAvailable()) {
@@ -385,7 +375,19 @@ void loop() {
         }
         
         // Via ESP-NOW senden
-        // TODO: Implement ESP-NOW sending
+        EspNowManager& espnow = EspNowManager::getInstance();
+        if (espnow.isConnected()) {
+            EspNowPacket packet;
+            packet.begin(MainCmd::DATA_REQUEST)
+                  .addInt16(DataCmd::JOYSTICK_X, joyX)
+                  .addInt16(DataCmd::JOYSTICK_Y, joyY);
+            
+            // An konfigurierten Peer senden
+            uint8_t peerMac[6];
+            if (EspNowManager::stringToMac(userConfig.getEspnowPeerMac(), peerMac)) {
+                espnow.send(peerMac, packet);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -397,7 +399,6 @@ void loop() {
     // Connection-Stats loggen (alle 5 Minuten)
     if (sdCard.isAvailable() && (millis() - lastConnectionLog > 300000)) {
         if (espnow.isConnected()) {
-            // Vereinfacht: Stats vom System
             int rxPending, txPending, resultPending;
             espnow.getQueueStats(&rxPending, &txPending, &resultPending);
             

@@ -4,14 +4,19 @@
 * Difinition der Anzeige-Seiten
 */
 
-#include "Globals.h"
+#include "DisplayHandler.h"
 #include "UIPage.h"
 #include "UIButton.h"
 #include "UILabel.h"
 #include "UISlider.h"
 #include "UITextBox.h"
 #include "UIProgressBar.h"
+#include "UIPageManager.h"
+#include "UserConfig.h"
+#include "BatteryMonitor.h"
+#include "JoystickHandler.h"
 #include "ESPNowManager.h"
+#include "Globals.h"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HomePage - Startseite mit Navigation
@@ -515,7 +520,7 @@ public:
         addContentElement(lblTitle);
         
         UISlider* sldBrightness = new UISlider(layout.contentX + 20, layout.contentY + 50, 460, 50);
-        sldBrightness->setValue(BACKLIGHT_DEFAULT);
+        sldBrightness->setValue(userConfig.getBacklightDefault());
         sldBrightness->setShowValue(true);
         sldBrightness->on(EventType::VALUE_CHANGED, [](EventData* data) {
             uint8_t brightness = map(data->value, 0, 100, BACKLIGHT_MIN, BACKLIGHT_MAX);
