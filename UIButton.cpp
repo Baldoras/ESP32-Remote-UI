@@ -19,9 +19,12 @@ UIButton::~UIButton() {
 }
 
 void UIButton::draw(TFT_eSPI* tft) {
-    if (!visible) return;
-    
+    if (!visible) {
+        return;
+    }
+
     drawButton(tft, pressed);
+
     needsRedraw = false;
 }
 
@@ -87,6 +90,7 @@ void UIButton::setPressedColor(uint16_t color) {
 void UIButton::drawButton(TFT_eSPI* tft, bool isPressed) {
     // Hintergrund
     uint16_t bgColor = isPressed ? pressedColor : normalColor;
+
     fillRoundRect(tft, x, y, width, height, style.cornerRadius, bgColor);
     
     // Rahmen

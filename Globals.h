@@ -11,23 +11,27 @@
 
 // Forward Declarations (keine Includes!)
 class DisplayHandler;
-class UIPageManager;
+class PageManager;
 class BatteryMonitor;
 class JoystickHandler;
 class SDCardHandler;
 class TouchManager;
 class UserConfig;
 class PowerManager;
+class EspNowManager;
 
 // Globale Objekte (extern)
 extern DisplayHandler display;
-extern UIPageManager pageManager;
 extern BatteryMonitor battery;
 extern JoystickHandler joystick;
 extern SDCardHandler sdCard;
 extern TouchManager touch;
 extern UserConfig userConfig;
 extern PowerManager powerMgr;
+extern EspNowManager espNow;
+
+// PageManager als Pointer (wird in setup() erstellt)
+extern PageManager* pageManager;
 
 // Seiten-IDs
 enum PageID {

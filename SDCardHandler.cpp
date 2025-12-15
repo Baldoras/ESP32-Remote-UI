@@ -86,49 +86,48 @@ uint64_t SDCardHandler::getTotalSpace() {
 bool SDCardHandler::logBootStart(const char* reason, uint32_t freeHeap, const char* version) {
     if (!mounted) return false;
     
-    JsonDocument doc;
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), 
+             "[%s] BOOT: reason=%s, heap=%u, ver=%s, build=%s %s, chip=%s, cpu=%dMHz\n",
+             getTimestamp().c_str(), reason, freeHeap, version,
+             BUILD_DATE, BUILD_TIME, ESP.getChipModel(), ESP.getCpuFreqMHz());
     
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "boot_start";
-    doc["reason"] = reason;
-    doc["free_heap"] = freeHeap;
-    doc["version"] = version;
-    doc["build"] = BUILD_DATE " " BUILD_TIME;
-    doc["chip_model"] = ESP.getChipModel();
-    doc["cpu_freq"] = ESP.getCpuFreqMHz();
+    rotateLogIfNeeded(LOG_FILE_BOOT);
+    bool success = appendFile(LOG_FILE_BOOT, buffer);
     
-    return writeJsonLog(LOG_FILE_BOOT, doc);
+    if (success) checkAutoFlush();
+    return success;
 }
 
 bool SDCardHandler::logSetupStep(const char* module, bool success, const char* message) {
     if (!mounted) return false;
     
-    JsonDocument doc;
-    
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "setup_step";
-    doc["module"] = module;
-    doc["success"] = success;
-    
+    char buffer[256];
     if (message) {
-        doc["message"] = message;
+        snprintf(buffer, sizeof(buffer), "[%s] SETUP: module=%s, status=%s, msg=%s\n",
+                 getTimestamp().c_str(), module, success ? "OK" : "FAIL", message);
+    } else {
+        snprintf(buffer, sizeof(buffer), "[%s] SETUP: module=%s, status=%s\n",
+                 getTimestamp().c_str(), module, success ? "OK" : "FAIL");
     }
     
-    return writeJsonLog(LOG_FILE_BOOT, doc);
+    rotateLogIfNeeded(LOG_FILE_BOOT);
+    bool result = appendFile(LOG_FILE_BOOT, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
 
 bool SDCardHandler::logBootComplete(uint32_t totalTimeMs, bool success) {
     if (!mounted) return false;
     
-    JsonDocument doc;
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "[%s] BOOT_COMPLETE: time=%ums, status=%s, heap=%u\n",
+             getTimestamp().c_str(), totalTimeMs, success ? "OK" : "FAIL", ESP.getFreeHeap());
     
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "boot_complete";
-    doc["total_time_ms"] = totalTimeMs;
-    doc["success"] = success;
-    doc["free_heap"] = ESP.getFreeHeap();
-    
-    return writeJsonLog(LOG_FILE_BOOT, doc);
+    rotateLogIfNeeded(LOG_FILE_BOOT);
+    bool result = appendFile(LOG_FILE_BOOT, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -138,16 +137,14 @@ bool SDCardHandler::logBootComplete(uint32_t totalTimeMs, bool success) {
 bool SDCardHandler::logBattery(float voltage, uint8_t percent, bool isLow, bool isCritical) {
     if (!mounted) return false;
     
-    JsonDocument doc;
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "[%s] BAT: V=%.2f, %%=%u, low=%d, crit=%d\n",
+             getTimestamp().c_str(), voltage, percent, isLow, isCritical);
     
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "battery";
-    doc["voltage"] = serialized(String(voltage, 2));
-    doc["percent"] = percent;
-    doc["is_low"] = isLow;
-    doc["is_critical"] = isCritical;
-    
-    return writeJsonLog(LOG_FILE_BATTERY, doc);
+    rotateLogIfNeeded(LOG_FILE_BATTERY);
+    bool result = appendFile(LOG_FILE_BATTERY, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -157,18 +154,19 @@ bool SDCardHandler::logBattery(float voltage, uint8_t percent, bool isLow, bool 
 bool SDCardHandler::logConnection(const char* peerMac, const char* event, int8_t rssi) {
     if (!mounted) return false;
     
-    JsonDocument doc;
-    
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "connection_event";
-    doc["peer_mac"] = peerMac;
-    doc["event"] = event;
-    
+    char buffer[128];
     if (rssi != 0) {
-        doc["rssi"] = rssi;
+        snprintf(buffer, sizeof(buffer), "[%s] CONN: peer=%s, event=%s, rssi=%d\n",
+                 getTimestamp().c_str(), peerMac, event, rssi);
+    } else {
+        snprintf(buffer, sizeof(buffer), "[%s] CONN: peer=%s, event=%s\n",
+                 getTimestamp().c_str(), peerMac, event);
     }
     
-    return writeJsonLog(LOG_FILE_CONNECTION, doc);
+    rotateLogIfNeeded(LOG_FILE_CONNECTION);
+    bool result = appendFile(LOG_FILE_CONNECTION, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
 
 bool SDCardHandler::logConnectionStats(const char* peerMac, uint32_t packetsSent, 
@@ -176,25 +174,26 @@ bool SDCardHandler::logConnectionStats(const char* peerMac, uint32_t packetsSent
                                         uint16_t sendRate, uint16_t receiveRate, int8_t avgRssi) {
     if (!mounted) return false;
     
-    JsonDocument doc;
-    
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "connection_stats";
-    doc["peer_mac"] = peerMac;
-    doc["packets_sent"] = packetsSent;
-    doc["packets_received"] = packetsReceived;
-    doc["packets_lost"] = packetsLost;
-    doc["send_rate"] = sendRate;
-    doc["receive_rate"] = receiveRate;
-    doc["avg_rssi"] = avgRssi;
-    
+    float lossRate = 0.0f;
     if (packetsSent > 0) {
-        float lossRate = (packetsLost * 100.0f) / packetsSent;
-        doc["loss_rate"] = serialized(String(lossRate, 2));
+        lossRate = (packetsLost * 100.0f) / packetsSent;
     }
     
-    return writeJsonLog(LOG_FILE_CONNECTION, doc);
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), 
+             "[%s] STATS: peer=%s, sent=%u, recv=%u, lost=%u, loss=%.2f%%, send_rate=%u, recv_rate=%u, rssi=%d\n",
+             getTimestamp().c_str(), peerMac, packetsSent, packetsReceived, packetsLost, 
+             lossRate, sendRate, receiveRate, avgRssi);
+    
+    rotateLogIfNeeded(LOG_FILE_CONNECTION);
+    bool result = appendFile(LOG_FILE_CONNECTION, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERROR LOG
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR LOG
@@ -203,40 +202,36 @@ bool SDCardHandler::logConnectionStats(const char* peerMac, uint32_t packetsSent
 bool SDCardHandler::logError(const char* module, int errorCode, const char* message, uint32_t freeHeap) {
     if (!mounted) return false;
     
-    JsonDocument doc;
+    uint32_t heap = (freeHeap > 0) ? freeHeap : ESP.getFreeHeap();
     
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "error";
-    doc["module"] = module;
-    doc["error_code"] = errorCode;
-    doc["message"] = message;
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "[%s] ERROR: module=%s, code=%d, msg=%s, heap=%u\n",
+             getTimestamp().c_str(), module, errorCode, message, heap);
     
-    if (freeHeap > 0) {
-        doc["free_heap"] = freeHeap;
-    } else {
-        doc["free_heap"] = ESP.getFreeHeap();
-    }
-    
-    return writeJsonLog(LOG_FILE_ERROR, doc);
+    rotateLogIfNeeded(LOG_FILE_ERROR);
+    bool result = appendFile(LOG_FILE_ERROR, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
 
 bool SDCardHandler::logCrash(uint32_t pc, uint32_t excvaddr, uint32_t exccause, const char* stackTrace) {
     if (!mounted) return false;
     
-    JsonDocument doc;
-    
-    doc["timestamp"] = getTimestamp();
-    doc["type"] = "crash";
-    doc["pc"] = String(pc, HEX);
-    doc["excvaddr"] = String(excvaddr, HEX);
-    doc["exccause"] = exccause;
-    doc["free_heap"] = ESP.getFreeHeap();
-    
+    char buffer[512];
     if (stackTrace) {
-        doc["stack_trace"] = stackTrace;
+        snprintf(buffer, sizeof(buffer), 
+                 "[%s] CRASH: pc=0x%08X, excvaddr=0x%08X, cause=%u, heap=%u\n  Stack: %s\n",
+                 getTimestamp().c_str(), pc, excvaddr, exccause, ESP.getFreeHeap(), stackTrace);
+    } else {
+        snprintf(buffer, sizeof(buffer), 
+                 "[%s] CRASH: pc=0x%08X, excvaddr=0x%08X, cause=%u, heap=%u\n",
+                 getTimestamp().c_str(), pc, excvaddr, exccause, ESP.getFreeHeap());
     }
     
-    return writeJsonLog(LOG_FILE_ERROR, doc);
+    rotateLogIfNeeded(LOG_FILE_ERROR);
+    bool result = appendFile(LOG_FILE_ERROR, buffer);
+    if (result) checkAutoFlush();
+    return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -433,24 +428,6 @@ void SDCardHandler::printInfo() {
 // ═══════════════════════════════════════════════════════════════════════════
 // PRIVATE METHODEN
 // ═══════════════════════════════════════════════════════════════════════════
-
-bool SDCardHandler::writeJsonLog(const char* logFile, JsonDocument& doc) {
-    if (!mounted) return false;
-    
-    String jsonString;
-    serializeJson(doc, jsonString);
-    jsonString += "\n";
-    
-    rotateLogIfNeeded(logFile);
-    
-    bool success = appendFile(logFile, jsonString.c_str());
-    
-    if (success) {
-        checkAutoFlush();
-    }
-    
-    return success;
-}
 
 String SDCardHandler::getTimestamp() {
     return String(millis());

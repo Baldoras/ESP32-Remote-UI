@@ -40,9 +40,11 @@ struct UserConfigData {
     uint8_t touchRotation;
     
     // ESP-NOW
+    uint8_t espnowChannel;       // WiFi-Kanal (0 = auto)
+    uint8_t espnowMaxPeers;      // Maximale Anzahl Peers
     uint32_t espnowHeartbeat;
     uint32_t espnowTimeout;
-    char espnowPeerMac[18];  // "XX:XX:XX:XX:XX:XX"
+    char espnowPeerMac[18];      // "XX:XX:XX:XX:XX:XX"
     
     // Joystick
     uint8_t joyDeadzone;
@@ -148,6 +150,8 @@ public:
     uint8_t getTouchRotation() const { return config.touchRotation; }
     
     // ESP-NOW
+    uint8_t getEspnowChannel() const { return config.espnowChannel; }
+    uint8_t getEspnowMaxPeers() const { return config.espnowMaxPeers; }
     uint32_t getEspnowHeartbeat() const { return config.espnowHeartbeat; }
     uint32_t getEspnowTimeout() const { return config.espnowTimeout; }
     const char* getEspnowPeerMac() const { return config.espnowPeerMac; }
@@ -182,6 +186,8 @@ public:
     void setTouchRotation(uint8_t value);
     
     // ESP-NOW
+    void setEspnowChannel(uint8_t value);
+    void setEspnowMaxPeers(uint8_t value);
     void setEspnowHeartbeat(uint32_t value);
     void setEspnowTimeout(uint32_t value);
     void setEspnowPeerMac(const char* mac);

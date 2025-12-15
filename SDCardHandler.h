@@ -246,16 +246,8 @@ private:
     unsigned long lastFlush;    // Letzter Flush-Zeitpunkt
     
     /**
-     * JSON-Log-Eintrag in Datei schreiben
-     * @param logFile Ziel-Datei
-     * @param doc JSON-Dokument
-     * @return true bei Erfolg
-     */
-    bool writeJsonLog(const char* logFile, JsonDocument& doc);
-    
-    /**
-     * Timestamp erstellen (Uptime in ms)
-     * @return Timestamp-String
+     * Zeitstempel generieren (millis)
+     * @return Zeitstempel als String
      */
     String getTimestamp();
     

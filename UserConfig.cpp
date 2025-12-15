@@ -202,7 +202,11 @@ void UserConfig::loadDefaults() {
     config.espnowHeartbeat = ESPNOW_HEARTBEAT_INTERVAL;
     config.espnowTimeout = ESPNOW_TIMEOUT_MS;
     strncpy(config.espnowPeerMac, ESPNOW_PEER_DEVICE_MAC, sizeof(config.espnowPeerMac) - 1);
+    config.espnowChannel = ESPNOW_CHANNEL;
+    config.espnowMaxPeers = ESPNOW_MAX_PEERS;
     config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
+    //config.espnowChannel = doc["espnow"]["channel"] | config.espnowChannel;
+    //config.espnowMaxPeers = doc["espnow"]["maxPeers"] | config.espnowMaxPeers;
     
     // Joystick
     config.joyDeadzone = JOY_DEADZONE;
@@ -263,6 +267,18 @@ bool UserConfig::validate() {
     // ESP-NOW - Timeout (mindestens 500ms)
     if (config.espnowTimeout < 500) {
         config.espnowTimeout = 500;
+    }
+    
+    // ESP-NOW - Channel (0-13)
+    if (config.espnowChannel > 13) {
+        config.espnowChannel = 0;
+        changed = true;
+    }
+    
+    // ESP-NOW - MaxPeers (1-20)
+    if (config.espnowMaxPeers == 0 || config.espnowMaxPeers > 20) {
+        config.espnowMaxPeers = ESPNOW_MAX_PEERS;
+        changed = true;
         changed = true;
     }
     
@@ -319,6 +335,8 @@ void UserConfig::printInfo() const {
     DEBUG_PRINTF("  Heartbeat: %dms\n", config.espnowHeartbeat);
     DEBUG_PRINTF("  Timeout: %dms\n", config.espnowTimeout);
     DEBUG_PRINTF("  Peer MAC: %s\n", config.espnowPeerMac);
+    DEBUG_PRINTF("  Channel: %d\n", config.espnowChannel);
+    DEBUG_PRINTF("  Max Peers: %d\n", config.espnowMaxPeers);
     
     DEBUG_PRINTLN("\n🕹️  JOYSTICK:");
     DEBUG_PRINTF("  Deadzone: %d%%\n", config.joyDeadzone);
@@ -375,6 +393,8 @@ bool UserConfig::deserializeFromJson(const String& jsonString) {
     const char* mac = doc["espnow"]["peerMac"] | config.espnowPeerMac;
     strncpy(config.espnowPeerMac, mac, sizeof(config.espnowPeerMac) - 1);
     config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
+    config.espnowChannel = doc["espnow"]["channel"] | config.espnowChannel;
+    config.espnowMaxPeers = doc["espnow"]["maxPeers"] | config.espnowMaxPeers;
     
     // Joystick
     config.joyDeadzone = doc["joystick"]["deadzone"] | config.joyDeadzone;
@@ -418,6 +438,8 @@ bool UserConfig::serializeToJson(String& jsonString) {
     doc["espnow"]["heartbeat"] = config.espnowHeartbeat;
     doc["espnow"]["timeout"] = config.espnowTimeout;
     doc["espnow"]["peerMac"] = config.espnowPeerMac;
+    doc["espnow"]["channel"] = config.espnowChannel;
+    doc["espnow"]["maxPeers"] = config.espnowMaxPeers;
     
     // Joystick
     doc["joystick"]["deadzone"] = config.joyDeadzone;
@@ -507,6 +529,8 @@ void UserConfig::setEspnowPeerMac(const char* mac) {
     if (strcmp(config.espnowPeerMac, mac) != 0) {
         strncpy(config.espnowPeerMac, mac, sizeof(config.espnowPeerMac) - 1);
         config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
+    //config.espnowChannel = doc["espnow"]["channel"] | config.espnowChannel;
+    //config.espnowMaxPeers = doc["espnow"]["maxPeers"] | config.espnowMaxPeers;
         setDirty(true);
     }
 }
@@ -560,6 +584,22 @@ void UserConfig::setJoyCalibration(uint8_t axis, int16_t min, int16_t center, in
 void UserConfig::setDebugSerialEnabled(bool value) {
     if (config.debugSerialEnabled != value) {
         config.debugSerialEnabled = value;
+        setDirty(true);
+    }
+}
+void UserConfig::setEspnowChannel(uint8_t value) {
+    if (value > 13) value = 0;  // Auto bei ungültigem Wert
+    if (config.espnowChannel != value) {
+        config.espnowChannel = value;
+        setDirty(true);
+    }
+}
+
+void UserConfig::setEspnowMaxPeers(uint8_t value) {
+    if (value == 0) value = 1;
+    if (value > 20) value = 20;
+    if (config.espnowMaxPeers != value) {
+        config.espnowMaxPeers = value;
         setDirty(true);
     }
 }

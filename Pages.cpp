@@ -1,7 +1,8 @@
 /**
 * Pages.cpp
 *
-* Difinition der Anzeige-Seiten
+* Definition der Anzeige-Seiten
+* Angepasst für neue PageManager Struktur (ohne GlobalUI)
 */
 
 #include "DisplayHandler.h"
@@ -11,7 +12,7 @@
 #include "UISlider.h"
 #include "UITextBox.h"
 #include "UIProgressBar.h"
-#include "UIPageManager.h"
+#include "PageManager.h"
 #include "UserConfig.h"
 #include "BatteryMonitor.h"
 #include "JoystickHandler.h"
@@ -100,7 +101,7 @@ public:
         UIButton* btnRemote = new UIButton(btnX1, btnY, btnWidth, btnHeight, "Remote Control");
         btnRemote->on(EventType::CLICK, [](EventData* data) {
             Serial.println("→ Remote Control");
-            ::pageManager.showPage(PAGE_REMOTE);
+            ::pageManager->showPageDeferred(PAGE_REMOTE);
         });
         addContentElement(btnRemote);
         
@@ -108,7 +109,7 @@ public:
         UIButton* btnConnection = new UIButton(btnX2, btnY, btnWidth, btnHeight, "Connection");
         btnConnection->on(EventType::CLICK, [](EventData* data) {
             Serial.println("→ Connection");
-            ::pageManager.showPage(PAGE_CONNECTION);
+            ::pageManager->showPageDeferred(PAGE_CONNECTION);
         });
         addContentElement(btnConnection);
         
@@ -118,7 +119,7 @@ public:
         UIButton* btnSettings = new UIButton(btnX1, btnY, btnWidth, btnHeight, "Settings");
         btnSettings->on(EventType::CLICK, [](EventData* data) {
             Serial.println("→ Settings");
-            ::pageManager.showPage(PAGE_SETTINGS);
+            ::pageManager->showPageDeferred(PAGE_SETTINGS);
         });
         addContentElement(btnSettings);
         
@@ -126,7 +127,7 @@ public:
         UIButton* btnInfo = new UIButton(btnX2, btnY, btnWidth, btnHeight, "System Info");
         btnInfo->on(EventType::CLICK, [](EventData* data) {
             Serial.println("→ System Info");
-            ::pageManager.showPage(PAGE_INFO);
+            ::pageManager->showPageDeferred(PAGE_INFO);
         });
         addContentElement(btnInfo);
         
@@ -167,8 +168,7 @@ private:
         if (contentElements.size() > 3) {
             UILabel* lblConnection = static_cast<UILabel*>(contentElements[3]);
             if (lblConnection) {
-                EspNowManager& espnow = EspNowManager::getInstance();
-                if (espnow.isConnected()) {
+                if (espNow.isInitialized() && espNow.isConnected()) {
                     lblConnection->setText("ESP-NOW: Connected");
                     lblConnection->setTextColor(COLOR_GREEN);
                 } else {
@@ -181,7 +181,7 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RemoteControlPage - aus vorhandener Datei
+// RemoteControlPage
 // ═══════════════════════════════════════════════════════════════════════════
 
 class RemoteControlPage : public UIPage {
@@ -197,7 +197,15 @@ private:
     
 public:
     RemoteControlPage(UIManager* ui, TFT_eSPI* tft)
-        : UIPage("Remote Control", ui, tft), joystickX(0), joystickY(0) {
+        : UIPage("Remote Control", ui, tft)
+        , joystickX(0)
+        , joystickY(0)
+        , labelConnectionStatus(nullptr)
+        , labelJoystickX(nullptr)
+        , labelJoystickY(nullptr)
+        , barRemoteBattery(nullptr)
+        , labelRemoteBatteryValue(nullptr)
+    {
         setBackButton(true, PAGE_HOME);
     }
     
@@ -206,7 +214,7 @@ public:
         
         // Status-Bar
         int16_t statusY = layout.contentY + 5;
-        labelConnectionStatus = new UILabel(layout.contentX + 10, statusY, 150, 25, "● DISCONNECTED");
+        labelConnectionStatus = new UILabel(layout.contentX + 10, statusY, 150, 25, "DISCONNECTED");
         labelConnectionStatus->setAlignment(TextAlignment::LEFT);
         labelConnectionStatus->setFontSize(1);
         labelConnectionStatus->setTextColor(COLOR_RED);
@@ -216,21 +224,21 @@ public:
         // Joystick-Bereich
         int16_t joyStartY = layout.contentY + 40;
         joystickAreaSize = 180;
-        joystickAreaX = layout.contentX + 20;
+        joystickAreaX = layout.contentX + 280;
         joystickAreaY = joyStartY;
         joystickCenterX = joystickAreaX + joystickAreaSize / 2;
         joystickCenterY = joystickAreaY + joystickAreaSize / 2;
         
         int16_t joyValuesY = joystickAreaY + joystickAreaSize + 10;
         
-        labelJoystickX = new UILabel(joystickAreaX, joyValuesY, joystickAreaSize / 2 - 5, 25, "X: 0");
-        labelJoystickX->setAlignment(TextAlignment::CENTER);
+        labelJoystickX = new UILabel(joystickAreaX + (joystickAreaSize / 2), joyValuesY, joystickAreaSize / 2 - 5, 20, "X: 0");
+        labelJoystickX->setAlignment(TextAlignment::LEFT);
         labelJoystickX->setFontSize(1);
         labelJoystickX->setTransparent(true);
         addContentElement(labelJoystickX);
         
-        labelJoystickY = new UILabel(joystickAreaX + joystickAreaSize / 2 + 5, joyValuesY, joystickAreaSize / 2 - 5, 25, "Y: 0");
-        labelJoystickY->setAlignment(TextAlignment::CENTER);
+        labelJoystickY = new UILabel(joystickAreaX, joyValuesY, joystickAreaSize / 2 - 5, 25, "Y: 0");
+        labelJoystickY->setAlignment(TextAlignment::LEFT);
         labelJoystickY->setFontSize(1);
         labelJoystickY->setTransparent(true);
         addContentElement(labelJoystickY);
@@ -262,9 +270,33 @@ public:
     }
     
     void update() override {
+        
+        if (!labelJoystickX || !labelJoystickY || !labelConnectionStatus) {
+            Serial.println("  Labels nicht initialisiert");
+            return;
+        }
+        
+        // Connection Status
+        static bool wasConnected = false;
+        bool isConnected = espNow.isInitialized() && espNow.isConnected();
+        
+        if (isConnected != wasConnected) {
+            if (isConnected) {
+                labelConnectionStatus->setText("CONNECTED");
+                labelConnectionStatus->setTextColor(COLOR_GREEN);
+            } else {
+                labelConnectionStatus->setText("DISCONNECTED");
+                labelConnectionStatus->setTextColor(COLOR_RED);
+            }
+            wasConnected = isConnected;
+        }
+        
+        // Joystick
         static int16_t lastJoyX = 0, lastJoyY = 0;
         if (joystickX != lastJoyX || joystickY != lastJoyY) {
+
             drawJoystickPosition();
+                        
             lastJoyX = joystickX;
             lastJoyY = joystickY;
             
@@ -283,20 +315,21 @@ public:
     
 private:
     void drawJoystickPosition() {
-        if (!tft) return;
         
-        // Bereich löschen
+        if (!tft) {
+            Serial.println("    ERROR: tft ist nullptr!");
+            return;
+        }
+
         tft->fillRect(joystickAreaX, joystickAreaY, joystickAreaSize, joystickAreaSize, COLOR_BLACK);
-        
-        // Kreis + Mittelkreuz zeichnen
+
         int16_t radius = joystickAreaSize / 2 - 5;
         tft->drawCircle(joystickCenterX, joystickCenterY, radius, COLOR_WHITE);
         tft->drawLine(joystickCenterX - 10, joystickCenterY, joystickCenterX + 10, joystickCenterY, COLOR_GRAY);
         tft->drawLine(joystickCenterX, joystickCenterY - 10, joystickCenterX, joystickCenterY + 10, COLOR_GRAY);
-        
-        // Joystick-Punkt
+
         int16_t posX = joystickCenterX + (joystickX * radius) / 100;
-        int16_t posY = joystickCenterY - (joystickY * radius) / 100;  // Y invertiert
+        int16_t posY = joystickCenterY - (joystickY * radius) / 100;
         
         tft->fillCircle(posX + 1, posY + 1, 8, COLOR_DARKGRAY);
         tft->fillCircle(posX, posY, 8, COLOR_BLUE);
@@ -305,7 +338,7 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ConnectionPage - ESP-NOW Verbindungsstatus
+// ConnectionPage
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ConnectionPage : public UIPage {
@@ -349,7 +382,6 @@ public:
         int16_t valueX = contentX + labelWidth + 10;
         int16_t valueWidth = contentW - labelWidth - 20;
         
-        // Status
         UILabel* labelStatus = new UILabel(contentX + 10, yPos, labelWidth, 30, "Status:");
         labelStatus->setAlignment(TextAlignment::LEFT);
         labelStatus->setFontSize(2);
@@ -365,7 +397,6 @@ public:
         
         yPos += 40;
         
-        // Eigene MAC
         UILabel* labelOwnMac = new UILabel(contentX + 10, yPos, labelWidth, 25, "Own MAC:");
         labelOwnMac->setAlignment(TextAlignment::LEFT);
         labelOwnMac->setFontSize(1);
@@ -381,7 +412,6 @@ public:
         
         yPos += 30;
         
-        // Peer MAC
         UILabel* labelPeerMac = new UILabel(contentX + 10, yPos, labelWidth, 25, "Peer MAC:");
         labelPeerMac->setAlignment(TextAlignment::LEFT);
         labelPeerMac->setFontSize(1);
@@ -397,7 +427,6 @@ public:
         
         yPos += 50;
         
-        // Buttons
         int16_t btnWidth = 140;
         int16_t btnHeight = 40;
         int16_t btnSpacing = 10;
@@ -418,10 +447,10 @@ public:
         btnDisconnect->setEnabled(false);
         addContentElement(btnDisconnect);
         
-        // Eigene MAC anzeigen
-        EspNowManager& espnow = EspNowManager::getInstance();
-        String ownMac = espnow.getOwnMacString();
-        labelOwnMacValue->setText(ownMac.c_str());
+        String ownMac = espNow.isInitialized() ? espNow.getOwnMacString() : "Not initialized";
+        if (labelOwnMacValue) {
+            labelOwnMacValue->setText(ownMac.c_str());
+        }
         
         Serial.println("  ✅ ConnectionPage build complete");
     }
@@ -431,24 +460,26 @@ public:
     }
     
     void setPeerMac(const char* macStr) {
+        if (!macStr) return;
+        
+        // Nur Daten speichern - Label wird in build() initialisiert
         strncpy(peerMacStr, macStr, sizeof(peerMacStr) - 1);
         peerMacStr[sizeof(peerMacStr) - 1] = '\0';
         EspNowManager::stringToMac(macStr, peerMac);
         
-        if (labelPeerMacValue) {
-            labelPeerMacValue->setText(peerMacStr);
-        }
+        Serial.printf("ConnectionPage: Peer MAC gespeichert: %s\n", peerMacStr);
     }
     
 private:
     void updateConnectionStatus() {
-        EspNowManager& espnow = EspNowManager::getInstance();
+        if (!labelStatusValue) return;
+        
         bool wasConnected = isConnected;
         
-        isConnected = espnow.isPeerConnected(peerMac);
-        isPaired = espnow.hasPeer(peerMac);
+        isConnected = espNow.isInitialized() && espNow.isPeerConnected(peerMac);
+        isPaired = espNow.isInitialized() && espNow.hasPeer(peerMac);
         
-        if (wasConnected != isConnected && labelStatusValue) {
+        if (wasConnected != isConnected) {
             if (isConnected) {
                 labelStatusValue->setText("Connected");
                 labelStatusValue->setTextColor(COLOR_GREEN);
@@ -470,14 +501,12 @@ private:
     
     void onPairClicked() {
         Serial.println("ConnectionPage: Pair clicked");
-        EspNowManager& espnow = EspNowManager::getInstance();
         
-        if (espnow.addPeer(peerMac)) {
+        if (espNow.isInitialized() && espNow.addPeer(peerMac)) {
             Serial.println("  Peer added");
             isPaired = true;
             updateConnectionStatus();
             
-            // Log Pairing
             sdCard.logConnection(peerMacStr, "paired");
         } else {
             Serial.println("  Add peer failed");
@@ -486,9 +515,8 @@ private:
     
     void onDisconnectClicked() {
         Serial.println("ConnectionPage: Disconnect clicked");
-        EspNowManager& espnow = EspNowManager::getInstance();
         
-        if (espnow.removePeer(peerMac)) {
+        if (espNow.isInitialized() && espNow.removePeer(peerMac)) {
             Serial.println("  Peer removed");
             isPaired = false;
             isConnected = false;
@@ -500,7 +528,7 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SettingsPage - Einstellungen (vereinfacht)
+// SettingsPage
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SettingsPage : public UIPage {
@@ -519,25 +547,23 @@ public:
         lblTitle->setTransparent(true);
         addContentElement(lblTitle);
         
-        UISlider* sldBrightness = new UISlider(layout.contentX + 20, layout.contentY + 50, 460, 50);
+        UISlider* sldBrightness = new UISlider(layout.contentX + 20, layout.contentY + 50, 410, 50);
         sldBrightness->setValue(userConfig.getBacklightDefault());
         sldBrightness->setShowValue(true);
         sldBrightness->on(EventType::VALUE_CHANGED, [](EventData* data) {
             uint8_t brightness = map(data->value, 0, 100, BACKLIGHT_MIN, BACKLIGHT_MAX);
             display.setBacklight(brightness);
-            DEBUG_PRINTF("Brightness: %d%% %d\n", data->value, brightness);
-            delay(100);
         });
         addContentElement(sldBrightness);
 
-        UILabel* lblInfo = new UILabel(layout.contentX + 20, layout.contentY + 70, layout.contentWidth - 40, 60, "Config via SD-Card config.conf");
+        UILabel* lblInfo = new UILabel(layout.contentX + 20, layout.contentY + 110, layout.contentWidth - 40, 60, "Config via SD-Card config.json");
         lblInfo->setFontSize(1);
         lblInfo->setAlignment(TextAlignment::CENTER);
         lblInfo->setTransparent(true);
         addContentElement(lblInfo);
 
         UIButton* btnCalibrate = new UIButton(
-            layout.contentX + 20,
+            layout.contentX + 140,
             layout.contentY + 180,
             200,
             40,
@@ -551,13 +577,14 @@ public:
         });
         addContentElement(btnCalibrate);
         
-        Serial.println("  SettingsPage build complete");
+        Serial.println("  ✅ SettingsPage build complete");
     }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// InfoPage - System-Informationen
+// InfoPage
 // ═══════════════════════════════════════════════════════════════════════════
+
 class InfoPage : public UIPage {
 private:
     UITextBox* txtInfo;
@@ -565,7 +592,9 @@ private:
     
 public:
     InfoPage(UIManager* ui, TFT_eSPI* tft) 
-        : UIPage("System Info", ui, tft), txtInfo(nullptr), lastUpdate(0) {
+        : UIPage("System Info", ui, tft)
+        , txtInfo(nullptr)
+        , lastUpdate(0) {
         setBackButton(true, PAGE_HOME);
     }
     
@@ -636,10 +665,9 @@ private:
         txtInfo->appendLine("");
         
         txtInfo->appendLine("ESP-NOW:");
-        EspNowManager& espnow = EspNowManager::getInstance();
-        sprintf(buffer, "  Init: %s", espnow.isInitialized() ? "Yes" : "No");
+        sprintf(buffer, "  Init: %s", espNow.isInitialized() ? "Yes" : "No");
         txtInfo->appendLine(buffer);
-        sprintf(buffer, "  Connected: %s", espnow.isConnected() ? "Yes" : "No");
+        sprintf(buffer, "  Connected: %s", (espNow.isInitialized() && espNow.isConnected()) ? "Yes" : "No");
         txtInfo->appendLine(buffer);
         txtInfo->appendLine("");
         
@@ -662,4 +690,3 @@ private:
         lastUpdate = millis();
     }
 };
-

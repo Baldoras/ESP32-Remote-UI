@@ -39,6 +39,10 @@ public:
     void setEnabled(bool enabled);
     void setStyle(ElementStyle style);
     
+    // Owner-Page Verwaltung
+    void setOwnerPage(void* page) { ownerPage = page; }
+    void* getOwnerPage() const { return ownerPage; }
+    
     // Event-Handler
     void on(EventType type, EventCallback callback);
     void off(EventType type);
@@ -69,6 +73,9 @@ protected:
     
     // Event-Handler
     UIEventHandler eventHandler;
+    
+    // Owner-Page (void* um Zirkelbezug zu vermeiden)
+    void* ownerPage;
     
     // Letzte Touch-Position
     int16_t lastTouchX, lastTouchY;

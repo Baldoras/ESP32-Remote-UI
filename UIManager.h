@@ -28,6 +28,9 @@ public:
     UIElement* getElement(int index);
     int getElementCount() const { return elements.size(); }
     void printDebugInfo();
+    
+    // Aktuelle Page setzen (für Touch-Event-Filterung)
+    void setCurrentPage(void* page);
 
 private:
     TFT_eSPI* tft;
@@ -36,8 +39,10 @@ private:
     bool lastTouchState;
     int16_t lastTouchX;
     int16_t lastTouchY;
+    void* currentPage;  // Aktuelle sichtbare Page
     
     void handleElementTouch(UIElement* element, int16_t x, int16_t y, bool pressed);
+    bool shouldProcessElement(UIElement* element);
 };
 
 #endif // UI_MANAGER_H

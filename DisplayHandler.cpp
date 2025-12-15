@@ -1,7 +1,7 @@
 /**
  * DisplayHandler.cpp
  * 
- * Implementation des Display-Managers mit UI-Integration
+ * Implementation des Display-Handlers (nur Hardware)
  */
 
 #include "DisplayHandler.h"
@@ -9,19 +9,12 @@
 #include <stdarg.h>
 
 DisplayHandler::DisplayHandler() 
-    : ui(nullptr)
-    , touchMgr(nullptr)
-    , initialized(false)
+    : initialized(false)
     , currentBrightness(128)
 {
 }
 
 DisplayHandler::~DisplayHandler() {
-    // UIManager aufräumen falls erstellt
-    if (ui != nullptr) {
-        delete ui;
-        ui = nullptr;
-    }
 }
 
 bool DisplayHandler::begin(UserConfig* config) {
@@ -36,7 +29,6 @@ bool DisplayHandler::begin(UserConfig* config) {
     // ═══════════════════════════════════════════════════════════════
     // Backlight initialisieren und einschalten
     // ═══════════════════════════════════════════════════════════════
-    // Helligkeit aus Config laden (falls verfügbar)
     uint8_t brightness = 128;  // Fallback
     if (config != nullptr) {
         brightness = config->getBacklightDefault();
@@ -51,7 +43,7 @@ bool DisplayHandler::begin(UserConfig* config) {
     // ═══════════════════════════════════════════════════════════════
     tft.init();
     
-    // WICHTIG: Rotation 3 = Landscape richtig rum (nicht auf dem Kopf!)
+    // WICHTIG: Rotation 3 = Landscape richtig rum
     tft.setRotation(DISPLAY_ROTATION);
     
     // Display löschen
@@ -60,45 +52,15 @@ bool DisplayHandler::begin(UserConfig* config) {
     initialized = true;
     
     DEBUG_PRINTLN("DisplayHandler: ✅ Display initialisiert");
-    DEBUG_PRINTF("DisplayHandler: Display-Auflösung: %d x %d\n", tft.width(), tft.height());
+    DEBUG_PRINTF("DisplayHandler: Auflösung: %d x %d\n", tft.width(), tft.height());
     
     return true;
-}
-
-bool DisplayHandler::enableUI(TouchManager* touch) {
-    if (!initialized) {
-        DEBUG_PRINTLN("DisplayHandler: ❌ Display nicht initialisiert!");
-        return false;
-    }
-    
-    if (touch == nullptr) {
-        DEBUG_PRINTLN("DisplayHandler: ❌ Touch ist nullptr!");
-        return false;
-    }
-    
-    // Touch-Manager speichern
-    touchMgr = touch;
-    
-    // UI-Manager erstellen
-    ui = new UIManager(&tft, touchMgr);
-    
-    DEBUG_PRINTLN("DisplayHandler: ✅ UI-Manager aktiviert");
-    
-    return true;
-}
-
-void DisplayHandler::update() {
-    // UI aktualisieren (nur wenn vorhanden)
-    if (ui != nullptr && touchMgr != nullptr) {
-        ui->update();
-        ui->drawUpdates();  // Nur geänderte Elemente zeichnen
-    }
 }
 
 void DisplayHandler::disableTouch() {
     DEBUG_PRINTLN("DisplayHandler: Deaktiviere Touch (CS auf HIGH)...");
     pinMode(TOUCH_CS, OUTPUT);
-    digitalWrite(TOUCH_CS, HIGH);  // Touch inaktiv
+    //digitalWrite(TOUCH_CS, HIGH);  // Touch inaktiv
     DEBUG_PRINTLN("DisplayHandler: ✅ Touch CS inaktiv");
 }
 
@@ -108,7 +70,7 @@ void DisplayHandler::initBacklight(uint8_t brightness) {
     // GPIO als Output
     pinMode(TFT_BL, OUTPUT);
     
-    // PWM konfigurieren (neue ESP32 Core 3.x API)
+    // PWM konfigurieren (ESP32 Core 3.x API)
     ledcAttach(TFT_BL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RES);
     
     // Helligkeit setzen
@@ -121,20 +83,11 @@ void DisplayHandler::initBacklight(uint8_t brightness) {
 void DisplayHandler::clear(uint16_t color) {
     if (!initialized) return;
     tft.fillScreen(color);
-    
-    // Alle UI-Elemente als "needs redraw" markieren
-    if (ui != nullptr) {
-        ui->clearScreen(color);
-    }
 }
 
 void DisplayHandler::setBacklight(uint8_t brightness) {
-    // Auf gültigen Bereich begrenzen
-    currentBrightness = constrain(brightness, BACKLIGHT_MIN, BACKLIGHT_MAX);;
-    
-    // PWM setzen
+    currentBrightness = constrain(brightness, BACKLIGHT_MIN, BACKLIGHT_MAX);
     ledcWrite(TFT_BL, currentBrightness);
-    
     DEBUG_PRINTF("DisplayHandler: Backlight-Helligkeit: %d\n", currentBrightness);
 }
 
@@ -202,10 +155,6 @@ int16_t DisplayHandler::height() {
 
 TFT_eSPI& DisplayHandler::getTft() {
     return tft;
-}
-
-UIManager* DisplayHandler::getUI() {
-    return ui;
 }
 
 uint16_t DisplayHandler::rgb565(uint8_t r, uint8_t g, uint8_t b) {

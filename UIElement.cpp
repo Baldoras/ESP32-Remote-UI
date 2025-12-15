@@ -7,6 +7,7 @@
 UIElement::UIElement(int16_t x, int16_t y, int16_t w, int16_t h)
     : x(x), y(y), width(w), height(h),
       visible(true), enabled(true), touched(false), needsRedraw(true),
+      ownerPage(nullptr),
       lastTouchX(0), lastTouchY(0) {
     
     // Standard-Style
@@ -87,10 +88,18 @@ void UIElement::getBounds(int16_t* outX, int16_t* outY, int16_t* outW, int16_t* 
 
 void UIElement::drawRoundRect(TFT_eSPI* tft, int16_t x, int16_t y, int16_t w, int16_t h, 
                               uint8_t r, uint16_t color) {
+    if (!tft) {
+        Serial.println("ERROR: UIElement::drawRoundRect() - tft is nullptr!");
+        return;
+    }
     tft->drawRoundRect(x, y, w, h, r, color);
 }
 
 void UIElement::fillRoundRect(TFT_eSPI* tft, int16_t x, int16_t y, int16_t w, int16_t h, 
                               uint8_t r, uint16_t color) {
+    if (!tft) {
+        Serial.println("ERROR: UIElement::fillRoundRect() - tft is nullptr!");
+        return;
+    }
     tft->fillRoundRect(x, y, w, h, r, color);
 }

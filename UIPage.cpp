@@ -1,17 +1,17 @@
 /**
  * UIPage.cpp
  * 
- * Vereinfachte Implementation - Header/Footer werden von GlobalUI verwaltet
+ * Vereinfachte Implementation - Header/Footer werden von UILayout verwaltet
  */
 
 #include "UIPage.h"
-#include "GlobalUI.h"
-#include "UIPageManager.h"
+#include "UILayout.h"
+#include "PageManager.h"
 
 UIPage::UIPage(const char* name, UIManager* uiMgr, TFT_eSPI* display)
     : ui(uiMgr)
     , tft(display)
-    , globalUI(nullptr)
+    , uiLayout(nullptr)
     , pageManager(nullptr)
     , visible(false)
     , built(false)
@@ -40,48 +40,46 @@ void UIPage::show() {
     
     visible = true;
     
-    // ═══════════════════════════════════════════════════════════════
-    // GlobalUI aktualisieren (Header/Footer komplett neu zeichnen!)
-    // ═══════════════════════════════════════════════════════════════
-    Serial.printf("UIPage::show() - globalUI pointer: %p\n", globalUI);
+    // UIManager informieren über aktuelle Page
+    if (ui) {
+        ui->setCurrentPage(this);
+    }
     
-    if (globalUI) {
-        Serial.println("  Calling redrawHeader()...");
-        // Header und Footer komplett neu zeichnen (um Überlagerungen zu vermeiden)
-        globalUI->redrawHeader();
+    // ═══════════════════════════════════════════════════════════════
+    // UILayout aktualisieren (wenn verfügbar)
+    // ═══════════════════════════════════════════════════════════════
+    if (uiLayout) {
+        Serial.printf("UIPage::show() - '%s' - UILayout verfügbar\n", pageName);
         
-        Serial.println("  Calling redrawFooter()...");
-        globalUI->redrawFooter();
-        
-        Serial.println("  Calling clearContentArea()...");
         // Content-Bereich löschen
-        globalUI->clearContentArea();
+        uiLayout->clearContent(layout.contentBgColor);
         
-        Serial.println("  Calling setPageTitle()...");
+        // Header und Footer neu zeichnen (für saubere Darstellung)
+        uiLayout->drawHeader();
+        uiLayout->drawFooter();
+        
         // Seiten-Titel setzen
-        globalUI->setPageTitle(pageName);
+        uiLayout->setPageTitle(pageName);
         
-        Serial.println("  Calling showBackButton()...");
         // Zurück-Button konfigurieren
         if (hasBackButton) {
-            globalUI->showBackButton(true, backButtonTarget);
+            uiLayout->setBackButton(true, backButtonTarget);
         } else {
-            globalUI->showBackButton(false);
+            uiLayout->setBackButton(false);
         }
         
-        Serial.println("  Calling updateBatteryIcon()...");
         // Battery-Icon aktualisieren
-        globalUI->updateBatteryIcon();
+        uiLayout->updateBattery();
         
-        Serial.println("  GlobalUI updates complete");
+        Serial.println("  UILayout aktualisiert");
     } else {
-        Serial.println("  WARNING: globalUI is NULL!");
+        Serial.printf("UIPage::show() - '%s' - WARNUNG: UILayout ist nullptr!\n", pageName);
     }
     
     // ═══════════════════════════════════════════════════════════════
     // Content-Elemente sichtbar machen und zeichnen
     // ═══════════════════════════════════════════════════════════════
-    Serial.printf("  Making %d content elements visible...\n", contentElements.size());
+    Serial.printf("  Mache %d Content-Elemente sichtbar...\n", contentElements.size());
     for (auto* element : contentElements) {
         element->setVisible(true);
         element->setNeedsRedraw(true);
@@ -96,9 +94,20 @@ void UIPage::hide() {
         element->setVisible(false);
     }
     
+    // Button-States zurücksetzen (verhindert Ghost-Clicks)
+    resetButtonStates();
+    
+    // Hook für abgeleitete Klassen
+    onHide();
+    
     visible = false;
     
-    Serial.printf("UIPage: '%s' versteckt\n", pageName);
+    Serial.printf("UIPage: '%s' versteckt (Button-States zurückgesetzt)\n", pageName);
+}
+
+void UIPage::onHide() {
+    // Standard-Implementation (leer)
+    // Kann in abgeleiteten Klassen überschrieben werden
 }
 
 void UIPage::update() {
@@ -109,18 +118,26 @@ void UIPage::update() {
 void UIPage::setBackButton(bool enabled, int targetPageId) {
     hasBackButton = enabled;
     backButtonTarget = targetPageId;
+    
+    Serial.printf("UIPage: '%s' - Zurück-Button: %s (Ziel: %d)\n", 
+                 pageName, enabled ? "aktiviert" : "deaktiviert", targetPageId);
 }
 
-void UIPage::setGlobalUI(GlobalUI* globalUIPtr) {
-    globalUI = globalUIPtr;
+void UIPage::setLayout(UILayout* layout) {
+    uiLayout = layout;
+    Serial.printf("UIPage: '%s' - UILayout gesetzt: %p\n", pageName, layout);
 }
 
-void UIPage::setPageManager(UIPageManager* pageManagerPtr) {
-    pageManager = pageManagerPtr;
+void UIPage::setPageManager(PageManager* pm) {
+    pageManager = pm;
+    Serial.printf("UIPage: '%s' - PageManager gesetzt: %p\n", pageName, pm);
 }
 
 void UIPage::addContentElement(UIElement* element) {
     if (!element || !ui) return;
+    
+    // Owner-Page setzen
+    element->setOwnerPage(this);
     
     contentElements.push_back(element);
     ui->add(element);
@@ -128,11 +145,23 @@ void UIPage::addContentElement(UIElement* element) {
 
 void UIPage::initDefaultLayout() {
     // Layout nur für Content-Bereich
-    // Header (0-40px) und Footer (280-320px) werden von GlobalUI verwaltet
+    // Header (0-40px) und Footer (280-320px) werden von UILayout verwaltet
     
     layout.contentX = 0;
     layout.contentY = 40;           // Nach Header
     layout.contentWidth = 480;      // Volle Breite
-    layout.contentHeight = 260;     // 280 - 20 = 240px
+    layout.contentHeight = 260;     // 280 - 40 (Header) = 240px
     layout.contentBgColor = COLOR_BLACK;
+}
+
+void UIPage::resetButtonStates() {
+    Serial.printf("UIPage::resetButtonStates() - Resetting %d elements\n", contentElements.size());
+    
+    for (auto* element : contentElements) {
+        // Simuliere Touch weit außerhalb für alle Elemente
+        // Buttons setzen dadurch automatisch pressed=false, wasInside=false
+        element->handleTouch(-1000, -1000, false);
+    }
+    
+    Serial.println("  Alle Element-States zurückgesetzt");
 }

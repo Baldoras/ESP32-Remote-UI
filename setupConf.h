@@ -187,4 +187,49 @@ enum ErrorCode {
   #define DEBUG_PRINTF(...)
 #endif
 
+// 📡 ESP-NOW HARDWARE-KONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Queue-Größen (FreeRTOS)
+#ifndef ESPNOW_RX_QUEUE_SIZE
+#define ESPNOW_RX_QUEUE_SIZE    10      // Empfangs-Queue Größe
+#endif
+
+#ifndef ESPNOW_TX_QUEUE_SIZE
+#define ESPNOW_TX_QUEUE_SIZE    10      // Sende-Queue Größe
+#endif
+
+#ifndef ESPNOW_RESULT_QUEUE_SIZE
+#define ESPNOW_RESULT_QUEUE_SIZE 10     // Ergebnis-Queue für Main-Thread
+#endif
+
+// Worker-Task Parameter
+#ifndef ESPNOW_WORKER_STACK_SIZE
+#define ESPNOW_WORKER_STACK_SIZE 4096   // Worker-Task Stack
+#endif
+
+#ifndef ESPNOW_WORKER_PRIORITY
+#define ESPNOW_WORKER_PRIORITY   5      // Worker-Task Priorität (höher = wichtiger)
+#endif
+
+#ifndef ESPNOW_WORKER_CORE
+#define ESPNOW_WORKER_CORE       1      // Core für Worker (0 oder 1, 1 = App-Core)
+#endif
+
+// Paket-Größen (ESP-NOW Hardware-Limits)
+#ifndef ESPNOW_MAX_PACKET_SIZE
+#define ESPNOW_MAX_PACKET_SIZE  250     // ESP-NOW Maximum
+#endif
+
+#ifndef ESPNOW_MAX_DATA_SIZE
+#define ESPNOW_MAX_DATA_SIZE    248     // Max Nutzdaten (250 - 2 Byte Header)
+#endif
+
+// Internes Hardware-Limit für Peers (ESP-NOW Hardware-Beschränkung)
+#ifndef ESPNOW_MAX_PEERS_LIMIT
+#define ESPNOW_MAX_PEERS_LIMIT  20      // ESP-NOW Hardware-Maximum
+#endif
+
+// ═══════════════════════════════════════════════════════════════════════════
+
 #endif // SETUP_CONF_H

@@ -450,8 +450,8 @@ SRAM:   512KB (Stack, Heap)
 ```cpp
 // Geschätzte Stromaufnahme (Remote):
 Display Backlight (max): ~200mA @ 3.3V
-ESP32-S3 Active:         ~100mA @ 3.3V
-Display + Touch:         ~50mA @ 3.3V
+ESP32-S3 Active:         ~100mA @ 5V
+Display + Touch:         ~50mA @ 5V
 ESP-NOW TX (continuous): ~120mA @ 3.3V
 -------------------------------------------
 TOTAL (worst case):      ~470mA @ 3.3V

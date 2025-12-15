@@ -41,6 +41,7 @@ void UILabel::handleTouch(int16_t tx, int16_t ty, bool isPressed) {
 void UILabel::setText(const char* txt) {
     strncpy(text, txt, sizeof(text) - 1);
     text[sizeof(text) - 1] = '\0';
+
     needsRedraw = true;
 }
 

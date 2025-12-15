@@ -30,57 +30,16 @@
 #include <vector>
 #include "setupConf.h"
 
+// Internes Hardware-Limit für Peers (ESP-NOW Hardware-Beschränkung)
+#ifndef ESPNOW_MAX_PEERS_LIMIT
+#define ESPNOW_MAX_PEERS_LIMIT  20      // ESP-NOW Hardware-Maximum
+#endif
+
 // ═══════════════════════════════════════════════════════════════════════════
 // KONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-#ifndef ESPNOW_MAX_PEERS
-#define ESPNOW_MAX_PEERS        5       // Maximale Anzahl Peers
-#endif
-
-#ifndef ESPNOW_RX_QUEUE_SIZE
-#define ESPNOW_RX_QUEUE_SIZE    10      // Empfangs-Queue Größe
-#endif
-
-#ifndef ESPNOW_TX_QUEUE_SIZE
-#define ESPNOW_TX_QUEUE_SIZE    10      // Sende-Queue Größe
-#endif
-
-#ifndef ESPNOW_RESULT_QUEUE_SIZE
-#define ESPNOW_RESULT_QUEUE_SIZE 10     // Ergebnis-Queue für Main-Thread
-#endif
-
-#ifndef ESPNOW_WORKER_STACK_SIZE
-#define ESPNOW_WORKER_STACK_SIZE 4096   // Worker-Task Stack
-#endif
-
-#ifndef ESPNOW_WORKER_PRIORITY
-#define ESPNOW_WORKER_PRIORITY   5      // Worker-Task Priorität (höher = wichtiger)
-#endif
-
-#ifndef ESPNOW_WORKER_CORE
-#define ESPNOW_WORKER_CORE       1      // Core für Worker (0 oder 1, 1 = App-Core)
-#endif
-
-#ifndef ESPNOW_MAX_PACKET_SIZE
-#define ESPNOW_MAX_PACKET_SIZE  250     // ESP-NOW Maximum
-#endif
-
-#ifndef ESPNOW_MAX_DATA_SIZE
-#define ESPNOW_MAX_DATA_SIZE    248     // Max Nutzdaten (250 - 2 Byte Header)
-#endif
-
-#ifndef ESPNOW_HEARTBEAT_INTERVAL
-#define ESPNOW_HEARTBEAT_INTERVAL 500   // Heartbeat alle 500ms
-#endif
-
-#ifndef ESPNOW_TIMEOUT_MS
-#define ESPNOW_TIMEOUT_MS       2000    // Verbindungs-Timeout 2s
-#endif
-
-#ifndef ESPNOW_CHANNEL
-#define ESPNOW_CHANNEL          0       // WiFi-Kanal (0 = auto)
-#endif
+// Queue-Größen, Worker-Task Parameter und Packet-Größen sind in setupConf.h definiert
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMMAND ENUMS
@@ -487,17 +446,19 @@ typedef std::function<void(EspNowEventData* eventData)> EspNowEventCallback;
 
 class EspNowManager {
 public:
-    /**
-     * Singleton-Instance abrufen
-     */
-    static EspNowManager& getInstance();
-
+    
     /**
      * ESP-NOW initialisieren
      * @param channel WiFi-Kanal (0 = auto)
      * @return true bei Erfolg
      */
-    bool begin(uint8_t channel = ESPNOW_CHANNEL);
+    bool begin(uint8_t channel = 0);
+
+    /**
+     * Konstruktor & Destruktor (public für globale Instanz)
+     */
+    EspNowManager();
+    ~EspNowManager();
 
     /**
      * ESP-NOW beenden und aufräumen
@@ -610,12 +571,17 @@ public:
     /**
      * Heartbeat aktivieren/deaktivieren
      */
-    void setHeartbeat(bool enabled, uint32_t intervalMs = ESPNOW_HEARTBEAT_INTERVAL);
+    void setHeartbeat(bool enabled, uint32_t intervalMs);
 
     /**
      * Timeout für Verbindungsverlust setzen
      */
     void setTimeout(uint32_t timeoutMs);
+
+    /**
+     * Maximale Anzahl Peers setzen (begrenzt Anzahl)
+     */
+    void setMaxPeers(uint8_t maxPeers);
 
     // ═══════════════════════════════════════════════════════════════════════
     // CALLBACKS (Optional, zusätzlich zu Queue)
@@ -684,15 +650,10 @@ public:
     void getQueueStats(int* rxPending, int* txPending, int* resultPending);
 
 private:
-    // Singleton
-    EspNowManager();
-    ~EspNowManager();
-    EspNowManager(const EspNowManager&) = delete;
-    EspNowManager& operator=(const EspNowManager&) = delete;
-
     // Status
     bool initialized;
     uint8_t wifiChannel;
+    uint8_t maxPeersLimit;       // User-konfigurierbares Peer-Limit (1-20)
 
     // Peers (mit Mutex geschützt)
     std::vector<EspNowPeer> peers;

@@ -199,24 +199,6 @@ void PowerManager::shutdownPeripherals() {
         display->setBacklightOn(false);
     }
     
-    // UI-Manager aufräumen (Speicher freigeben)
-    UIManager* ui = display->getUI();
-    if (ui) {
-        DEBUG_PRINTLN("  UI-Manager aufräumen...");
-        ui->clear();  // Alle UI-Elemente entfernen
-    }
-    
-    // SPI-Pins auf INPUT setzen (Stromverbrauch reduzieren)
-    pinMode(TFT_CS, INPUT);
-    pinMode(TFT_DC, INPUT);
-    pinMode(TFT_MOSI, INPUT);
-    pinMode(TFT_MISO, INPUT);
-    pinMode(TFT_SCK, INPUT);
-    pinMode(TFT_BL, INPUT);
-    
-    pinMode(TOUCH_CS, INPUT);
-    
-    DEBUG_PRINTLN("  Display & SPI Pins → INPUT");
     DEBUG_PRINTLN("  Peripherals shutdown complete");
 }
 
@@ -244,7 +226,7 @@ void PowerManager::configureWakeup(WakeSource wakeSource, uint32_t timerSeconds)
     switch (wakeSource) {
         case WakeSource::NONE:
             DEBUG_PRINTLN("  Wake-Up: NONE (Permanent Off)");
-            // Keine Wake-Up Quellen → Permanent aus
+            // Keine Wake-Up Quellen → Permanent aus (wie BatteryMonitor::shutdown())
             break;
             
         case WakeSource::TOUCH:

@@ -5,7 +5,7 @@
 #include "UIManager.h"
 
 UIManager::UIManager(TFT_eSPI* tft, TouchManager* touch)
-    : tft(tft), touch(touch), lastTouchState(false), lastTouchX(0), lastTouchY(0) {
+    : tft(tft), touch(touch), lastTouchState(false), lastTouchX(0), lastTouchY(0), currentPage(nullptr) {
 }
 
 UIManager::~UIManager() {
@@ -37,10 +37,33 @@ void UIManager::clear() {
     elements.clear();
 }
 
+void UIManager::setCurrentPage(void* page) {
+    currentPage = page;
+    Serial.printf("UIManager: CurrentPage gesetzt auf %p\n", page);
+}
+
 void UIManager::update() {
     if (!touch) return;
-    
-    // Touch-Status abrufen
+
+    // KRITISCH: Erst IRQ prüfen (schneller GPIO-Check)
+    // Nur wenn IRQ aktiv ist, Touch-Daten per SPI holen
+    if (!touch->isIRQActive()) {
+        // Kein Touch-IRQ → trotzdem Release-Events verarbeiten falls nötig
+        if (lastTouchState) {
+            // Touch war aktiv, ist jetzt aber beendet
+            for (auto* element : elements) {
+                if (element && element->isEnabled() && element->isVisible()) {
+                    if (shouldProcessElement(element)) {
+                        handleElementTouch(element, lastTouchX, lastTouchY, false);
+                    }
+                }
+            }
+            lastTouchState = false;
+        }
+        return;  // Kein Touch-IRQ → früh beenden
+    }
+
+    // Touch-Status abrufen (nur wenn IRQ aktiv war)
     bool touchActive = touch->isTouchActive();
     TouchPoint point = touch->getTouchPoint();
     
@@ -48,7 +71,10 @@ void UIManager::update() {
         // Touch aktiv - an alle Elemente weiterleiten
         for (auto* element : elements) {
             if (element && element->isVisible() && element->isEnabled()) {
-                handleElementTouch(element, point.x, point.y, true);
+                // NUR verarbeiten wenn Element zur aktuellen Page gehört!
+                if (shouldProcessElement(element)) {
+                    handleElementTouch(element, point.x, point.y, true);
+                }
             }
         }
         
@@ -58,12 +84,29 @@ void UIManager::update() {
         // Touch gerade beendet - Release-Event
         for (auto* element : elements) {
             if (element && element->isEnabled() && element->isVisible()) {
-                handleElementTouch(element, lastTouchX, lastTouchY, false);
+                // NUR verarbeiten wenn Element zur aktuellen Page gehört!
+                if (shouldProcessElement(element)) {
+                    handleElementTouch(element, lastTouchX, lastTouchY, false);
+                }
             }
         }
     }
     
     lastTouchState = touchActive;
+}
+
+bool UIManager::shouldProcessElement(UIElement* element) {
+    if (!element) return false;
+    
+    void* elementOwner = element->getOwnerPage();
+    
+    // Elemente ohne Owner (z.B. Header/Footer) immer verarbeiten
+    if (!elementOwner) return true;
+    
+    // Element nur verarbeiten wenn es zur aktuellen Page gehört
+    bool matches = (elementOwner == currentPage);
+    
+    return matches;
 }
 
 void UIManager::drawAll() {
@@ -79,8 +122,15 @@ void UIManager::drawAll() {
 void UIManager::drawUpdates() {
     if (!tft) return;
     
-    for (auto* element : elements) {
+    for (int i = 0; i < elements.size(); i++) {
+        auto* element = elements[i];
+
         if (element && element->isVisible() && element->getNeedsRedraw()) {
+            
+            // KRITISCH: Bounds ausgeben um Element zu identifizieren
+            int16_t x, y, w, h;
+            element->getBounds(&x, &y, &w, &h);
+        
             element->draw(tft);
         }
     }
@@ -109,6 +159,7 @@ UIElement* UIManager::getElement(int index) {
 void UIManager::printDebugInfo() {
     Serial.println("\n=== UI Manager Debug Info ===");
     Serial.printf("Elements: %d\n", elements.size());
+    Serial.printf("Current Page: %p\n", currentPage);
     Serial.printf("Last Touch: %s at (%d, %d)\n", 
                   lastTouchState ? "ACTIVE" : "INACTIVE", 
                   lastTouchX, lastTouchY);
@@ -123,10 +174,11 @@ void UIManager::printDebugInfo() {
         int16_t x, y, w, h;
         el->getBounds(&x, &y, &w, &h);
         
-        Serial.printf("  [%d] Pos(%d,%d) Size(%dx%d) Visible:%s Enabled:%s\n",
+        Serial.printf("  [%d] Pos(%d,%d) Size(%dx%d) Visible:%s Enabled:%s Owner:%p\n",
                       i, x, y, w, h,
                       el->isVisible() ? "YES" : "NO",
-                      el->isEnabled() ? "YES" : "NO");
+                      el->isEnabled() ? "YES" : "NO",
+                      el->getOwnerPage());
     }
     Serial.println("============================\n");
 }

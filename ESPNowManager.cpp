@@ -295,21 +295,15 @@ void EspNowPacket::print() const {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ESPNOWMANAGER - SINGLETON
-// ═══════════════════════════════════════════════════════════════════════════
-
-EspNowManager& EspNowManager::getInstance() {
-    static EspNowManager instance;
-    return instance;
-}
 
 EspNowManager::EspNowManager()
     : initialized(false)
-    , wifiChannel(ESPNOW_CHANNEL)
+    , wifiChannel(0)
+    , maxPeersLimit(5)           // Default: 5 Peers
     , peersMutex(nullptr)
     , heartbeatEnabled(false)
-    , heartbeatInterval(ESPNOW_HEARTBEAT_INTERVAL)
-    , timeoutMs(ESPNOW_TIMEOUT_MS)
+    , heartbeatInterval(500)
+    , timeoutMs(2000)
     , lastHeartbeatSent(0)
     , rxQueue(nullptr)
     , txQueue(nullptr)
@@ -486,8 +480,11 @@ bool EspNowManager::addPeer(const uint8_t* mac, bool encrypt) {
         DEBUG_PRINTF("EspNowManager: Peer %s existiert bereits\n", macToString(mac).c_str());
         result = true;
     }
-    else if (peers.size() >= ESPNOW_MAX_PEERS) {
-        DEBUG_PRINTLN("EspNowManager: ❌ Maximale Peer-Anzahl erreicht!");
+    else if (peers.size() >= maxPeersLimit) {
+        DEBUG_PRINTF("EspNowManager: ❌ User-Limit erreicht (%d/%d Peers)\n", peers.size(), maxPeersLimit);
+    }
+    else if (peers.size() >= ESPNOW_MAX_PEERS_LIMIT) {
+        DEBUG_PRINTLN("EspNowManager: ❌ Hardware-Limit erreicht!");
     }
     else {
         esp_now_peer_info_t peerInfo = {};
@@ -682,6 +679,15 @@ void EspNowManager::setHeartbeat(bool enabled, uint32_t intervalMs) {
 void EspNowManager::setTimeout(uint32_t timeout) {
     timeoutMs = timeout;
     DEBUG_PRINTF("EspNowManager: Timeout: %dms\n", timeout);
+
+}
+void EspNowManager::setMaxPeers(uint8_t maxPeers) {
+    // User-Limit validieren (1-20, nicht größer als Hardware-Limit)
+    if (maxPeers == 0) maxPeers = 1;
+    if (maxPeers > ESPNOW_MAX_PEERS_LIMIT) maxPeers = ESPNOW_MAX_PEERS_LIMIT;
+    
+    maxPeersLimit = maxPeers;
+    DEBUG_PRINTF("EspNowManager: MaxPeers Limit: %d (hardware limit: %d)\n", maxPeersLimit, ESPNOW_MAX_PEERS_LIMIT);
 }
 
 void EspNowManager::checkTimeouts() {
@@ -742,9 +748,9 @@ void EspNowManager::triggerEvent(EspNowEvent event, EspNowEventData* data) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void EspNowManager::onDataRecvStatic(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
-    EspNowManager& mgr = getInstance();
+    extern EspNowManager espNow;
     
-    if (!mgr.rxQueue || !info || !data || len <= 0) return;
+    if (!espNow.rxQueue || !info || !data || len <= 0) return;
     
     // Direkt in Queue schieben (im WiFi-Interrupt-Kontext!)
     RxQueueItem item;
@@ -754,12 +760,13 @@ void EspNowManager::onDataRecvStatic(const esp_now_recv_info_t* info, const uint
     item.timestamp = millis();
     
     // Non-blocking, von ISR aus
-    xQueueSendFromISR(mgr.rxQueue, &item, nullptr);
+    xQueueSendFromISR(espNow.rxQueue, &item, nullptr);
 }
 
 void EspNowManager::onDataSentStatic(const wifi_tx_info_t* tx_info, esp_now_send_status_t status) {
+    extern EspNowManager espNow;
     // Neue API (ESP32 Arduino Core 3.x)
-    getInstance().handleSendStatus(nullptr, status == ESP_NOW_SEND_SUCCESS);
+    espNow.handleSendStatus(nullptr, status == ESP_NOW_SEND_SUCCESS);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1125,7 +1132,7 @@ void EspNowManager::printInfo() {
     DEBUG_PRINTLN("\n─── Peers ─────────────────────────────────────");
     
     if (xSemaphoreTake(peersMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        DEBUG_PRINTF("Anzahl: %d / %d\n", peers.size(), ESPNOW_MAX_PEERS);
+        DEBUG_PRINTF("Anzahl: %d / %d\n", peers.size(), ESPNOW_MAX_PEERS_LIMIT);
         
         for (auto& peer : peers) {
             DEBUG_PRINTF("\n  MAC: %s\n", macToString(peer.mac).c_str());

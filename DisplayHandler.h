@@ -1,15 +1,15 @@
 /**
  * DisplayHandler.h
  * 
- * Display-Manager für ST7796 mit TFT_eSPI + UI-System
+ * Display-Manager für ST7796 mit TFT_eSPI
  * 
- * Features:
- * - Display-Initialisierung mit Backlight-Steuerung
- * - Touch-Blockierung (Touch CS inaktiv)
- * - Rotation 3 (Landscape richtig rum)
+ * NUR HARDWARE-VERWALTUNG:
+ * - Display-Initialisierung
  * - Backlight-Steuerung (PWM)
- * - Integriertes UI-System (UIManager)
- * - Basis-Zeichenfunktionen
+ * - Touch CS deaktivieren
+ * - Rotation
+ * 
+ * KEIN UI-SYSTEM mehr! (PageManager verwaltet UI)
  */
 
 #ifndef DISPLAY_HANDLER_H
@@ -18,8 +18,6 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include "setupConf.h"
-#include "UIManager.h"
-#include "TouchManager.h"
 
 class UserConfig;
 
@@ -36,23 +34,11 @@ public:
     ~DisplayHandler();
 
     /**
-     * Display initialisieren
-     * @return true bei Erfolg, false bei Fehler
-     */
-    bool begin(UserConfig* config = nullptr);
-
-    /**
-     * UI-System aktivieren (nach Touch-Init)
-     * @param touch TouchManager Pointer
+     * Display initialisieren (nur Hardware!)
+     * @param config Optional: UserConfig für Helligkeit
      * @return true bei Erfolg
      */
-    bool enableUI(TouchManager* touch);
-
-    /**
-     * Update-Schleife (Touch + UI)
-     * In loop() aufrufen!
-     */
-    void update();
+    bool begin(UserConfig* config = nullptr);
 
     /**
      * Display löschen
@@ -73,7 +59,7 @@ public:
     void setBacklightOn(bool on);
 
     /**
-     * Text zeichnen
+     * Text zeichnen (Basis-Funktion)
      * @param text Text
      * @param x X-Position
      * @param y Y-Position
@@ -84,11 +70,6 @@ public:
 
     /**
      * Formatierter Text (wie printf)
-     * @param x X-Position
-     * @param y Y-Position
-     * @param color Textfarbe
-     * @param size Textgröße
-     * @param format Format-String
      */
     void drawTextF(int16_t x, int16_t y, uint16_t color, uint8_t size, const char* format, ...);
 
@@ -128,14 +109,9 @@ public:
     int16_t height();
 
     /**
-     * TFT_eSPI Objekt direkt zugreifen (für erweiterte Funktionen)
+     * TFT_eSPI Objekt direkt zugreifen
      */
     TFT_eSPI& getTft();
-
-    /**
-     * UIManager abrufen (für UI-Elemente hinzufügen)
-     */
-    UIManager* getUI();
 
     /**
      * RGB888 zu RGB565 konvertieren
@@ -144,8 +120,6 @@ public:
 
 private:
     TFT_eSPI tft;              // TFT_eSPI Objekt
-    UIManager* ui;             // UI-Manager (optional)
-    TouchManager* touchMgr;    // Touch-Manager (optional)c:\Users\Baldoras\Desktop\remote_files\config.h
     bool initialized;          // Initialisierungs-Flag
     uint8_t currentBrightness; // Aktuelle Helligkeit
     
