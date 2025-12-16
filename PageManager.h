@@ -95,6 +95,14 @@ public:
     UIPage* getPage(int pageId);
 
     /**
+     * Joystick-Position an RemoteControlPage weiterleiten
+     * Entkoppelt .ino von konkreter Page-Implementierung
+     * @param x X-Achse (-100 bis 100)
+     * @param y Y-Achse (-100 bis 100)
+     */
+    void updateJoystick(int16_t x, int16_t y);
+
+    /**
      * Aktuelle Seiten-ID
      */
     int getCurrentPageId() const { return currentPageId; }

@@ -5,6 +5,22 @@
  */
 
 #include "PageManager.h"
+#include "HomePage.h"
+#include "RemoteControlPage.h"
+#include "ConnectionPage.h"
+#include "SettingsPage.h"
+#include "InfoPage.h"
+#include "UserConfig.h"
+
+// Externe Referenzen
+extern UserConfig userConfig;
+
+// Interne Page-Instanzen
+static HomePage* homePage = nullptr;
+static RemoteControlPage* remotePage = nullptr;
+static ConnectionPage* connectionPage = nullptr;
+static SettingsPage* settingsPage = nullptr;
+static InfoPage* infoPage = nullptr;
 
 PageManager::PageManager(TFT_eSPI* display, UIManager* uiMgr)
     : tft(display)
@@ -17,7 +33,13 @@ PageManager::PageManager(TFT_eSPI* display, UIManager* uiMgr)
 }
 
 PageManager::~PageManager() {
-    // Seiten werden nicht gelöscht (Ownership beim Aufrufer)
+    // Pages löschen
+    if (homePage) delete homePage;
+    if (remotePage) delete remotePage;
+    if (connectionPage) delete connectionPage;
+    if (settingsPage) delete settingsPage;
+    if (infoPage) delete infoPage;
+    
     pages.clear();
 }
 
@@ -43,6 +65,32 @@ bool PageManager::init(BatteryMonitor* battery, PowerManager* powerMgr) {
     initialized = true;
     
     Serial.println("PageManager: ✅ Initialisierung abgeschlossen!");
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Pages erstellen und registrieren
+    // ═══════════════════════════════════════════════════════════════
+    Serial.println("PageManager: Erstelle Pages...");
+    
+    homePage = new HomePage(ui, tft);
+    remotePage = new RemoteControlPage(ui, tft);
+    connectionPage = new ConnectionPage(ui, tft);
+    settingsPage = new SettingsPage(ui, tft);
+    infoPage = new InfoPage(ui, tft);
+    
+    // Peer MAC aus Config an ConnectionPage übergeben
+    connectionPage->setPeerMac(userConfig.getEspnowPeerMac());
+    
+    Serial.println("  ✅ Pages erstellt");
+    
+    // Pages registrieren
+    Serial.println("PageManager: Registriere Pages...");
+    addPage(homePage, PAGE_HOME);
+    addPage(remotePage, PAGE_REMOTE);
+    addPage(connectionPage, PAGE_CONNECTION);
+    addPage(settingsPage, PAGE_SETTINGS);
+    addPage(infoPage, PAGE_INFO);
+    
+    Serial.printf("  ✅ %d Pages registriert\n", getPageCount());
     
     return true;
 }
@@ -141,6 +189,13 @@ UIPage* PageManager::getPage(int pageId) {
         return pages[index].page;
     }
     return nullptr;
+}
+
+void PageManager::updateJoystick(int16_t x, int16_t y) {
+    // Direkt an RemoteControlPage weiterleiten (ohne cast im .ino)
+    if (remotePage) {
+        remotePage->setJoystickPosition(x, y);
+    }
 }
 
 void PageManager::update() {

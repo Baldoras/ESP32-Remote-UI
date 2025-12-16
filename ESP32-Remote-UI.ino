@@ -7,6 +7,7 @@
  * - DisplayHandler: nur Hardware (kein UIManager mehr)
  * - PageManager: verwaltet UILayout + Pages + UIManager
  * - UILayout: zentrales Header/Footer/Content Layout
+ * - Pages werden vom PageManager erstellt und verwaltet
  */
 
 #include "TouchManager.h"
@@ -18,7 +19,6 @@
 #include "ESPNowManager.h"
 #include "UserConfig.h"
 #include "Globals.h"
-#include "Pages.cpp"
 
 // UIManager (für Widget-Verwaltung)
 UIManager* ui = nullptr;
@@ -27,13 +27,6 @@ UIManager* ui = nullptr;
 unsigned long lastBatteryLog = 0;
 unsigned long lastConnectionLog = 0;
 unsigned long setupStartTime = 0;
-
-// Globale Seiten-Objekte
-HomePage* homePage = nullptr;
-RemoteControlPage* remotePage = nullptr;
-ConnectionPage* connectionPage = nullptr;
-SettingsPage* settingsPage = nullptr;
-InfoPage* infoPage = nullptr;
 
 void setup() {
     setupStartTime = millis();
@@ -257,7 +250,7 @@ void setup() {
     if (sdAvailable) sdCard.logSetupStep("UIManager", true);
     
     // ═══════════════════════════════════════════════════════════════
-    // PageManager erstellen (mit UILayout)
+    // PageManager erstellen (mit UILayout) + Pages
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ PageManager...");
     pageManager = new PageManager(tft, ui);
@@ -268,35 +261,8 @@ void setup() {
         while (1) delay(100);
     }
     
-    Serial.println("  ✅ PageManager OK (mit UILayout)");
-    if (sdAvailable) sdCard.logSetupStep("PageManager", true, "UILayout initialized");
-    
-    // ═══════════════════════════════════════════════════════════════
-    // Pages erstellen
-    // ═══════════════════════════════════════════════════════════════
-    Serial.println("→ Pages...");
-    homePage = new HomePage(ui, tft);
-    remotePage = new RemoteControlPage(ui, tft);
-    connectionPage = new ConnectionPage(ui, tft);
-    settingsPage = new SettingsPage(ui, tft);
-    infoPage = new InfoPage(ui, tft);
-    
-    // Peer MAC aus Config an ConnectionPage übergeben
-    connectionPage->setPeerMac(userConfig.getEspnowPeerMac());
-    
-    Serial.println("  ✅ Pages created");
-    if (sdAvailable) sdCard.logSetupStep("UI-Pages", true, "5 pages created");
-    
-    // ═══════════════════════════════════════════════════════════════
-    // Pages registrieren (PageManager übergibt UILayout an Pages)
-    // ═══════════════════════════════════════════════════════════════
-    Serial.println("→ Register Pages...");
-    pageManager->addPage(homePage, PAGE_HOME);
-    pageManager->addPage(remotePage, PAGE_REMOTE);
-    pageManager->addPage(connectionPage, PAGE_CONNECTION);
-    pageManager->addPage(settingsPage, PAGE_SETTINGS);
-    pageManager->addPage(infoPage, PAGE_INFO);
-    Serial.printf("  ✅ %d Pages registered\n", pageManager->getPageCount());
+    Serial.println("  ✅ PageManager OK (Pages erstellt und registriert)");
+    if (sdAvailable) sdCard.logSetupStep("PageManager", true, "UILayout + 5 Pages");
     
     // ═══════════════════════════════════════════════════════════════
     // Home-Page anzeigen
@@ -381,10 +347,8 @@ void loop() {
         int16_t joyX = joystick.getX();
         int16_t joyY = joystick.getY();
         
-        // An RemoteControlPage senden (für lokale Anzeige)
-        if (remotePage) {
-            remotePage->setJoystickPosition(joyX, joyY);
-        }
+        // An RemoteControlPage senden (über PageManager - entkoppelt)
+        pageManager->updateJoystick(joyX, joyY);
         
         // Via ESP-NOW senden
         if (espNow.isConnected()) {
