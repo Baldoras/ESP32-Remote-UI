@@ -215,6 +215,7 @@ espnow.send(peerMac, packet);
 
 ### 4. SettingsPage
 - **Backlight-Slider** (PWM 0-255, live Anpassung)
+- **Auto-Shutdown-checkbox** (live aktivieren/deaktivieren)
 - **Joystick Center-Kalibrierung** (Button)
 - **Hinweis**: Weitere Config via `config.conf` auf SD
 
