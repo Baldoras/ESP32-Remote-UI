@@ -49,9 +49,9 @@ void InfoPage::build() {
 }
 
 void InfoPage::update() {
-    if (millis() - lastUpdate > 10000) {
+    /*if (millis() - lastUpdate > 10000) {
         updateInfo();
-    }
+    }*/
 }
 
 void InfoPage::updateInfo() {
