@@ -11,8 +11,8 @@ UISlider::UISlider(int16_t x, int16_t y, int16_t w, int16_t h)
       knobColor(COLOR_WHITE), barColor(COLOR_BLUE), showValue(true) {
     
     knobRadius = h / 2 - 2;
-    if (knobRadius < 8) knobRadius = 8;
-    if (knobRadius > 15) knobRadius = 15;
+    if (knobRadius < 5) knobRadius = 5;
+    if (knobRadius > 10) knobRadius = 10;
     
     style.bgColor = COLOR_BLACK;
     style.borderColor = COLOR_WHITE;
@@ -130,12 +130,12 @@ void UISlider::drawSlider(TFT_eSPI* tft) {
         char buffer[8];
         sprintf(buffer, "%d%%", value);
         
-        tft->setTextDatum(ML_DATUM);  // Middle Left
+        tft->setTextDatum(MR_DATUM);  // Middle Right
         tft->setTextColor(style.textColor, COLOR_BLACK);  // Transparenter Hintergrund
         tft->setTextSize(2);
         
         // Wert rechts neben dem Slider (außerhalb Widget)
-        tft->drawString(buffer, x + width + 10, y + height / 2);
+        tft->drawString(buffer, x + width + 40, y + height / 2);
     }
 }
 
