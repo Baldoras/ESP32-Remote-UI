@@ -40,6 +40,7 @@ Dieses Projekt ist eine vollständig ausgestattete, batteriegetriebene Fernsteue
 | **Batterie** | 2S LiPo | 7.4V nominal (6.6V - 8.4V) |
 | **Spannungssensor** | 0-25V Modul | Batterie-Monitoring mit ADC |
 | **Backlight** | PN2222A NPN | PWM-gesteuert (0-255) |
+| **Step-Down buck** | 2 x XL4015 | Speißt eine 5V und eine 3,3V Schiene |
 
 ### Pinbelegung
 
@@ -92,7 +93,7 @@ ESP32-Remote-UI.ino          // Hauptprogramm
 
 - **GlobalUI**: Zentrales Header/Footer-Management
   - Header (0-40px): Zurück-Button, Titel, Battery-Icon
-  - Footer (280-320px): Status-Text
+  - Footer (300-320px): Status-Text
 - **UIPageManager**: Verwaltet 5 Seiten mit Navigation
 - **Widget-Library**: Button, Label, Slider, ProgressBar, CheckBox, RadioButton, TextBox
 
@@ -183,11 +184,12 @@ espnow.send(peerMac, packet);
   "touch_threshold": 600,
   "espnow_heartbeat": 500,
   "espnow_timeout": 2000,
+  "autoshutdown":true,
   "debug_serial": true
 }
 ```
 
-**Vorteil:** Hardware-Defaults in `config.h`, optionales Override via SD-Karte!
+**Vorteil:** Hardware-Defaults in `setupConfig.h`.
 
 ---
 
@@ -280,7 +282,7 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 // Dann die Pins direkt in User_Setup.h eintragen:
 ```
 
-**ODER:** Pins direkt in `config.h` definieren und via `-D` Flags übergeben.
+**ODER:** Pins direkt in `setupConfig.h` definieren und via `-D` Flags übergeben.
 
 ### 3. Hardware Verkabelung
 
