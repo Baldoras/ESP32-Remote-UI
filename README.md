@@ -462,10 +462,14 @@ ESP32-S3 Active:         ~100mA @ 5V
 Display + Touch:         ~50mA @ 5V
 ESP-NOW TX (continuous): ~120mA @ 3.3V (nicht getestet)
 -------------------------------------------
-TOTAL (worst case):      ~470mA @ 3.3V
+TOTAL (worst case):      ~470mA @ 3.3V (berechnet)
 
-// 2S LiPo 2000mAh:
-Laufzeit: ~6 - 8 Stunden (kontinuierlich)
+// Getestet und gemessen
+TOTAL ohne ESP-NOW       ~130mA @ 8,4V (Akku-Ausgang)
+
+
+// 2S LiPo 3000mAh:
+Laufzeit: ~6 - 8 Stunden (kontinuierlich und getestet)
 ```
 
 ### Joystick Deadzone
