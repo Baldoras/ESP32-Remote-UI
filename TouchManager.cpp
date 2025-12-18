@@ -1,12 +1,11 @@
-#include "esp32-hal.h"
 /**
  * TouchManager.cpp
  * 
  * Implementation des Touch-Managers mit UserConfig Integration
  */
 
-#include "TouchManager.h"
-#include "UserConfig.h"
+#include "include/TouchManager.h"
+#include "include/UserConfig.h"
 
 TouchManager::TouchManager()
     : ts(nullptr)  // WICHTIG: Pointer auf nullptr initialisieren!

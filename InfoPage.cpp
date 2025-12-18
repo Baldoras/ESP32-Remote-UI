@@ -4,16 +4,16 @@
  * System-Informationsseite mit Hardware- und Software-Status
  */
 
-#include "InfoPage.h"
-#include "UIButton.h"
-#include "UITextBox.h"
-#include "PageManager.h"
-#include "BatteryMonitor.h"
-#include "TouchManager.h"
-#include "SDCardHandler.h"
-#include "ESPNowManager.h"
-#include "JoystickHandler.h"
-#include "Globals.h"
+#include "include/InfoPage.h"
+#include "include/UIButton.h"
+#include "include/UITextBox.h"
+#include "include/PageManager.h"
+#include "include/BatteryMonitor.h"
+#include "include/TouchManager.h"
+#include "include/SDCardHandler.h"
+#include "include/ESPNowManager.h"
+#include "include/JoystickHandler.h"
+#include "include/Globals.h"
 #include <ESP.h>
 
 InfoPage::InfoPage(UIManager* ui, TFT_eSPI* tft) 

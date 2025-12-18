@@ -4,8 +4,8 @@
  * Implementation des Display-Handlers (nur Hardware)
  */
 
-#include "DisplayHandler.h"
-#include "UserConfig.h"
+#include "include/DisplayHandler.h"
+#include "include/UserConfig.h"
 #include <stdarg.h>
 
 DisplayHandler::DisplayHandler() 

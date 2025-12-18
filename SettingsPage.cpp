@@ -4,16 +4,16 @@
  * Einstellungsseite für Helligkeit und Kalibrierung
  */
 
-#include "SettingsPage.h"
-#include "UIButton.h"
-#include "UILabel.h"
-#include "UISlider.h"
-#include "UICheckBox.h"
-#include "PageManager.h"
-#include "DisplayHandler.h"
-#include "UserConfig.h"
-#include "JoystickHandler.h"
-#include "Globals.h"
+#include "include/SettingsPage.h"
+#include "include/UIButton.h"
+#include "include/UILabel.h"
+#include "include/UISlider.h"
+#include "include/UICheckBox.h"
+#include "include/PageManager.h"
+#include "include/DisplayHandler.h"
+#include "include/UserConfig.h"
+#include "include/JoystickHandler.h"
+#include "include/Globals.h"
 
 SettingsPage::SettingsPage(UIManager* ui, TFT_eSPI* tft) 
     : UIPage("Settings", ui, tft) {

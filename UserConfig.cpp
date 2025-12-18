@@ -4,8 +4,8 @@
  * Implementation der User-Konfiguration
  */
 
-#include "UserConfig.h"
-#include "SDCardHandler.h"
+#include "include/UserConfig.h"
+#include "include/SDCardHandler.h"
 
 UserConfig::UserConfig()
     : ConfigManager()
@@ -539,8 +539,8 @@ void UserConfig::setEspnowPeerMac(const char* mac) {
     if (strcmp(config.espnowPeerMac, mac) != 0) {
         strncpy(config.espnowPeerMac, mac, sizeof(config.espnowPeerMac) - 1);
         config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
-    //config.espnowChannel = doc["espnow"]["channel"] | config.espnowChannel;
-    //config.espnowMaxPeers = doc["espnow"]["maxPeers"] | config.espnowMaxPeers;
+        //config.espnowChannel = doc["espnow"]["channel"] | config.espnowChannel;
+        //config.espnowMaxPeers = doc["espnow"]["maxPeers"] | config.espnowMaxPeers;
         setDirty(true);
     }
 }

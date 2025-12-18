@@ -4,7 +4,7 @@
  * FIX: Slider löscht nur innerhalb eigener Bounds (kein Header-Überschreiben!)
  */
 
-#include "UISlider.h"
+#include "include/UISlider.h"
 
 UISlider::UISlider(int16_t x, int16_t y, int16_t w, int16_t h)
     : UIElement(x, y, w, h), value(50), dragging(false), 

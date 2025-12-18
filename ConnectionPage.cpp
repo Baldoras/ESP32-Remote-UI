@@ -4,13 +4,13 @@
  * Verbindungsseite für ESP-NOW Pairing
  */
 
-#include "ConnectionPage.h"
-#include "UIButton.h"
-#include "UILabel.h"
-#include "PageManager.h"
-#include "ESPNowManager.h"
-#include "SDCardHandler.h"
-#include "Globals.h"
+#include "include/ConnectionPage.h"
+#include "include/UIButton.h"
+#include "include/UILabel.h"
+#include "include/PageManager.h"
+#include "include/ESPNowManager.h"
+#include "include/SDCardHandler.h"
+#include "include/Globals.h"
 
 ConnectionPage::ConnectionPage(UIManager* ui, TFT_eSPI* tft)
     : UIPage("Connection", ui, tft)

@@ -4,9 +4,9 @@
  * Vereinfachte Implementation - Header/Footer werden von UILayout verwaltet
  */
 
-#include "UIPage.h"
-#include "UILayout.h"
-#include "PageManager.h"
+#include "include/UIPage.h"
+#include "include/UILayout.h"
+#include "include/PageManager.h"
 
 UIPage::UIPage(const char* name, UIManager* uiMgr, TFT_eSPI* display)
     : ui(uiMgr)

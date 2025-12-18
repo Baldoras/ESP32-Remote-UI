@@ -4,13 +4,13 @@
  * Implementation des Page-Managers mit zentralem Layout
  */
 
-#include "PageManager.h"
-#include "HomePage.h"
-#include "RemoteControlPage.h"
-#include "ConnectionPage.h"
-#include "SettingsPage.h"
-#include "InfoPage.h"
-#include "UserConfig.h"
+#include "include/PageManager.h"
+#include "include/HomePage.h"
+#include "include/RemoteControlPage.h"
+#include "include/ConnectionPage.h"
+#include "include/SettingsPage.h"
+#include "include/InfoPage.h"
+#include "include/UserConfig.h"
 
 // Externe Referenzen
 extern UserConfig userConfig;

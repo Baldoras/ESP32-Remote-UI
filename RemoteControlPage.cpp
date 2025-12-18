@@ -4,13 +4,13 @@
  * Fernsteuerungs-Seite mit Joystick-Visualisierung
  */
 
-#include "RemoteControlPage.h"
-#include "UIButton.h"
-#include "UILabel.h"
-#include "UIProgressBar.h"
-#include "PageManager.h"
-#include "ESPNowManager.h"
-#include "Globals.h"
+#include "include/RemoteControlPage.h"
+#include "include/UIButton.h"
+#include "include/UILabel.h"
+#include "include/UIProgressBar.h"
+#include "include/PageManager.h"
+#include "include/ESPNowManager.h"
+#include "include/Globals.h"
 
 RemoteControlPage::RemoteControlPage(UIManager* ui, TFT_eSPI* tft)
     : UIPage("Remote Control", ui, tft)

@@ -4,7 +4,7 @@
  * Implementation des Joystick-Handlers
  */
 
-#include "JoystickHandler.h"
+#include "include/JoystickHandler.h"
 
 JoystickHandler::JoystickHandler()
     : pinX(JOY_PIN_Y)

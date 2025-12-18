@@ -4,8 +4,8 @@
  * Implementation des Batterie-Monitors
  */
 
-#include "BatteryMonitor.h"
-#include "UserConfig.h"
+#include "include/BatteryMonitor.h"
+#include "include/UserConfig.h"
 
 BatteryMonitor::BatteryMonitor()
     : initialized(false)

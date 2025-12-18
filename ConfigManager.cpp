@@ -4,8 +4,8 @@
  * Implementation der abstrakten Basis-Klasse
  */
 
-#include "ConfigManager.h"
-#include "setupConf.h"
+#include "include/ConfigManager.h"
+#include "include/setupConf.h"
 
 ConfigManager::ConfigManager()
     : dirty(false)

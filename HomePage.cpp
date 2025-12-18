@@ -4,13 +4,13 @@
  * Startseite mit Navigation zu allen anderen Pages
  */
 
-#include "HomePage.h"
-#include "UIButton.h"
-#include "UILabel.h"
-#include "PageManager.h"
-#include "BatteryMonitor.h"
-#include "ESPNowManager.h"
-#include "Globals.h"
+#include "include/HomePage.h"
+#include "include/UIButton.h"
+#include "include/UILabel.h"
+#include "include/PageManager.h"
+#include "include/BatteryMonitor.h"
+#include "include/ESPNowManager.h"
+#include "include/Globals.h"
 
 HomePage::HomePage(UIManager* ui, TFT_eSPI* tft) 
     : UIPage("Home", ui, tft) {

@@ -8,16 +8,16 @@
  * Wird in setup() initialisiert, hier nur Platzhalter
  */
 
-#include "Globals.h"
-#include "DisplayHandler.h"
-#include "PageManager.h"
-#include "BatteryMonitor.h"
-#include "JoystickHandler.h"
-#include "SDCardHandler.h"
-#include "TouchManager.h"
-#include "UserConfig.h"
-#include "PowerManager.h"
-#include "ESPNowManager.h"
+#include "include/Globals.h"
+#include "include/DisplayHandler.h"
+#include "include/PageManager.h"
+#include "include/BatteryMonitor.h"
+#include "include/JoystickHandler.h"
+#include "include/SDCardHandler.h"
+#include "include/TouchManager.h"
+#include "include/UserConfig.h"
+#include "include/PowerManager.h"
+#include "include/ESPNowManager.h"
 
 // Globale Instanzen
 DisplayHandler display;
