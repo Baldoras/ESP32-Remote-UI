@@ -1,3 +1,4 @@
+#include "esp32-hal.h"
 /**
  * TouchManager.cpp
  * 
@@ -87,6 +88,9 @@ bool TouchManager::isAvailable() {
 }
 
 bool TouchManager::update() {
+    const uint8_t SAMPLE_COUNT = 10;
+    const uint8_t SAMPLE_DELAY_US = 100;
+
     // Prüfen ob Touch verfügbar ist (nullptr-Check!)
     if (!isAvailable()) {
         return false;
@@ -109,14 +113,37 @@ bool TouchManager::update() {
                 touchStartTime = millis();
             }
             
-            currentPoint.rawX = p.x;
-            currentPoint.rawY = p.y;
+            int16_t bufferX[SAMPLE_COUNT] = {p.x};
+            int16_t bufferY[SAMPLE_COUNT] = {p.y};
+            
+            for (int i = 0; i < SAMPLE_COUNT; i++) {
+                delayMicroseconds(SAMPLE_DELAY_US);
+
+                p = ts->getPoint();
+             
+                bufferX[i] = p.x;
+                bufferY[i] = p.y;
+            }
+
+            uint16_t sumX = 0;
+            uint16_t sumY = 0;
+
+            for (int i = 0; i < SAMPLE_COUNT; i++) {
+                sumX += bufferX[i];
+                sumY += bufferY[i];
+            }
+
+            uint16_t tmpX = sumX / SAMPLE_COUNT;
+            uint16_t tmpY = sumY / SAMPLE_COUNT;
+
+            currentPoint.rawX = tmpX;
+            currentPoint.rawY = tmpY;
             currentPoint.z = p.z;
             currentPoint.timestamp = millis();
             currentPoint.valid = true;
             
             // Auf Display-Koordinaten mappen
-            mapCoordinates(p.x, p.y, &currentPoint.x, &currentPoint.y);
+            mapCoordinates(tmpX, tmpY, &currentPoint.x, &currentPoint.y);
             
             return true;
         } else {
