@@ -2,12 +2,14 @@
  * ESP32-Remote-UI.ino
  * 
  * Fernsteuerung mit ESP-NOW und Multi-Page UI + SD-Card Logging + Config-System
+ * + Serial Command Interface für Log-Zugriff
  * 
  * NEUE STRUKTUR:
  * - DisplayHandler: nur Hardware (kein UIManager mehr)
  * - PageManager: verwaltet UILayout + Pages + UIManager
  * - UILayout: zentrales Header/Footer/Content Layout
  * - Pages werden vom PageManager erstellt und verwaltet
+ * - SerialCommandHandler: Log-Dateien über Serial auslesen
  */
 
 #include "include/TouchManager.h"
@@ -20,9 +22,13 @@
 #include "include/ESPNowManager.h"
 #include "include/UserConfig.h"
 #include "include/Globals.h"
+#include "include/SerialCommandHandler.h"
 
 // UIManager (für Widget-Verwaltung)
 UIManager* ui = nullptr;
+
+// Serial Command Handler
+SerialCommandHandler cmdHandler;
 
 // Timing für Logging
 unsigned long lastBatteryLog = 0;
@@ -202,24 +208,18 @@ void setup() {
         logger.logBootStep("ESP-NOW", true, espNow.getOwnMacString().c_str());
         
         // Events für Logging registrieren
-        espNow.onEvent(EspNowEvent::PEER_CONNECTED, [](EspNowEventData* data) {
-            String mac = EspNowManager::macToString(data->mac);
         espNow.onEvent(ESPNowEvent::PEER_CONNECTED, [](ESPNowEventData* data) {
             String mac = ESPNowManager::macToString(data->mac);
             logger.logConnection(mac.c_str(), "connected");
             Serial.printf("ESP-NOW: Peer %s connected\n", mac.c_str());
         });
         
-        espNow.onEvent(EspNowEvent::PEER_DISCONNECTED, [](EspNowEventData* data) {
-            String mac = EspNowManager::macToString(data->mac);
         espNow.onEvent(ESPNowEvent::PEER_DISCONNECTED, [](ESPNowEventData* data) {
             String mac = ESPNowManager::macToString(data->mac);
             logger.logConnection(mac.c_str(), "disconnected");
             Serial.printf("ESP-NOW: Peer %s disconnected\n", mac.c_str());
         });
         
-        espNow.onEvent(EspNowEvent::HEARTBEAT_TIMEOUT, [](EspNowEventData* data) {
-            String mac = EspNowManager::macToString(data->mac);
         espNow.onEvent(ESPNowEvent::HEARTBEAT_TIMEOUT, [](ESPNowEventData* data) {
             String mac = ESPNowManager::macToString(data->mac);
             logger.logConnection(mac.c_str(), "timeout");
@@ -267,6 +267,14 @@ void setup() {
     logger.logBootStep("PageManager", true, "UILayout + 5 Pages");
     
     // ═══════════════════════════════════════════════════════════════
+    // Serial Command Handler
+    // ═══════════════════════════════════════════════════════════════
+    Serial.println("→ Serial Command Handler...");
+    cmdHandler.begin(&sdCard, &logger, &battery, &espNow, &userConfig);
+    Serial.println("  ✅ Command Handler OK");
+    logger.logBootStep("SerialCmdHandler", true);
+    
+    // ═══════════════════════════════════════════════════════════════
     // Home-Page anzeigen
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ Show HomePage...");
@@ -295,6 +303,11 @@ void setup() {
 
 void loop() {
     lastLoopStart = millis();
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Serial Command Handler (höchste Priorität)
+    // ═══════════════════════════════════════════════════════════════
+    cmdHandler.update();
     
     // ═══════════════════════════════════════════════════════════════
     // Battery Monitor
@@ -350,14 +363,12 @@ void loop() {
         
         // Via ESP-NOW senden
         if (espNow.isConnected()) {
-            EspNowPacket packet;
             ESPNowPacket packet;
             packet.begin(MainCmd::DATA_REQUEST)
                   .addInt16(DataCmd::JOYSTICK_X, joyX)
                   .addInt16(DataCmd::JOYSTICK_Y, joyY);
             
             uint8_t peerMac[6];
-            if (EspNowManager::stringToMac(userConfig.getEspnowPeerMac(), peerMac)) {
             if (ESPNowManager::stringToMac(userConfig.getEspnowPeerMac(), peerMac)) {
                 espNow.send(peerMac, packet);
             }
