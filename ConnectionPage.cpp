@@ -10,6 +10,7 @@
 #include "include/PageManager.h"
 #include "include/ESPNowManager.h"
 #include "include/SDCardHandler.h"
+#include "include/LogHandler.h"
 #include "include/Globals.h"
 
 ConnectionPage::ConnectionPage(UIManager* ui, TFT_eSPI* tft)
@@ -163,7 +164,7 @@ void ConnectionPage::onPairClicked() {
         isPaired = true;
         updateConnectionStatus();
         
-        sdCard.logConnection(peerMacStr, "paired");
+        logger.logConnection(peerMacStr, "paired");
     } else {
         Serial.println("  Add peer failed");
     }

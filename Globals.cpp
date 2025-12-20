@@ -14,6 +14,7 @@
 #include "include/BatteryMonitor.h"
 #include "include/JoystickHandler.h"
 #include "include/SDCardHandler.h"
+#include "include/LogHandler.h"
 #include "include/TouchManager.h"
 #include "include/UserConfig.h"
 #include "include/PowerManager.h"
@@ -24,6 +25,7 @@ DisplayHandler display;
 BatteryMonitor battery;
 JoystickHandler joystick;
 SDCardHandler sdCard;
+LogHandler logger(nullptr, LOG_INFO);  // Startet ohne SD, nur Serial, Level INFO
 TouchManager touch;
 UserConfig userConfig;
 PowerManager powerMgr;

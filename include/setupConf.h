@@ -72,7 +72,7 @@
 // SPI-Geschwindigkeiten
 #define TFT_SPI_FREQUENCY    40000000  // 27 MHz für Display
 #define TOUCH_SPI_FREQUENCY  1000000   // 2,5 MHz für Touch
-#define SD_SPI_FREQUENCY     25000000  // 25 MHz für SD
+#define SD_SPI_FREQUENCY     10000000  // 25 MHz für SD
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔋 BATTERIE SCHWELLWERTE (2S LiPo)
@@ -137,6 +137,24 @@
 // Content Area
 #define UI_CONTENT_Y            UI_STATUSBAR_HEIGHT
 #define UI_CONTENT_HEIGHT       (DISPLAY_HEIGHT - UI_STATUSBAR_HEIGHT - UI_NAVBAR_HEIGHT)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📝 LOGHANDLER KONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Log-Verzeichnis
+#define LOG_DIR         "/logs"
+
+// Log-Dateinamen (im /logs Verzeichnis)
+#define LOGFILE_BATTERY     "/logs/battery.log"
+#define LOGFILE_BOOT        "/logs/boot.log"
+#define LOGFILE_CONNECTION  "/logs/connection.log"
+#define LOGFILE_ERROR       "/logs/error.log"
+
+// Log-Konfiguration
+#define LOG_MAX_MESSAGE_LEN 256
+#define LOG_MAX_FILE_SIZE   1048576  // 1 MB
+#define LOG_ROTATION_KEEP   3        // Anzahl rotierter Dateien
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🛡️ FEHLERCODES
