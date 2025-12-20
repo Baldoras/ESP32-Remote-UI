@@ -122,7 +122,46 @@ void SerialCommandHandler::processCommand(const String& cmd) {
         handleSysInfo();
     }
     else if (command == "config") {
-        handleConfig();
+        if (args.length() == 0) {
+            handleConfig();
+        } else {
+            // config list / get / set / save / reset
+            int spaceIdx = args.indexOf(' ');
+            String subCmd = (spaceIdx > 0) ? args.substring(0, spaceIdx) : args;
+            String subArgs = (spaceIdx > 0) ? args.substring(spaceIdx + 1) : "";
+            subCmd.toLowerCase();
+            subArgs.trim();
+            
+            if (subCmd == "list") {
+                handleConfigList();
+            } else if (subCmd == "get") {
+                if (subArgs.length() == 0) {
+                    Serial.println("❌ Fehler: Key fehlt");
+                    Serial.println("   Verwendung: config get <key>");
+                } else {
+                    handleConfigGet(subArgs);
+                }
+            } else if (subCmd == "set") {
+                int valueIdx = subArgs.indexOf(' ');
+                if (valueIdx < 0) {
+                    Serial.println("❌ Fehler: Wert fehlt");
+                    Serial.println("   Verwendung: config set <key> <value>");
+                } else {
+                    String key = subArgs.substring(0, valueIdx);
+                    String value = subArgs.substring(valueIdx + 1);
+                    key.trim();
+                    value.trim();
+                    handleConfigSet(key, value);
+                }
+            } else if (subCmd == "save") {
+                handleConfigSave();
+            } else if (subCmd == "reset") {
+                handleConfigReset();
+            } else {
+                Serial.printf("❌ Unbekannter config Befehl: '%s'\n", subCmd.c_str());
+                Serial.println("   Gültig: list, get, set, save, reset");
+            }
+        }
     }
     else if (command == "battery") {
         handleBattery();
@@ -151,9 +190,16 @@ void SerialCommandHandler::handleHelp() {
     Serial.println("  clear <file>          - Log-Datei löschen");
     Serial.println("  clearall              - Alle Log-Dateien löschen");
     Serial.println();
+    Serial.println("⚙️  CONFIG-BEFEHLE:");
+    Serial.println("  config                - Komplette Config anzeigen");
+    Serial.println("  config list           - Alle Config-Keys anzeigen");
+    Serial.println("  config get <key>      - Einzelnen Wert anzeigen");
+    Serial.println("  config set <key> <val>- Wert ändern");
+    Serial.println("  config save           - Config speichern");
+    Serial.println("  config reset          - Auf Defaults zurücksetzen");
+    Serial.println();
     Serial.println("ℹ️  SYSTEM-BEFEHLE:");
     Serial.println("  sysinfo               - System-Informationen");
-    Serial.println("  config                - Konfiguration anzeigen");
     Serial.println("  battery               - Battery-Status");
     Serial.println("  espnow                - ESP-NOW Status");
     Serial.println();
@@ -361,7 +407,6 @@ void SerialCommandHandler::handleBattery() {
     Serial.printf("Percent:       %d %%\n", battery->getPercent());
     Serial.printf("Low:           %s\n", battery->isLow() ? "JA" : "NEIN");
     Serial.printf("Critical:      %s\n", battery->isCritical() ? "JA" : "NEIN");
-    //Serial.printf("Charging:      %s\n", battery->isCharging() ? "JA" : "NEIN");
     
     printSeparator();
 }
@@ -494,6 +539,409 @@ void SerialCommandHandler::readLogFileHead(const char* filepath, int lines) {
     }
     
     file.close();
+}
+
+void SerialCommandHandler::handleConfigList() {
+    if (!config) {
+        Serial.println("❌ UserConfig nicht verfügbar");
+        return;
+    }
+    
+    printHeader("Verfügbare Config-Keys");
+    
+    Serial.println("📺 DISPLAY:");
+    Serial.println("  backlight_default      (0-255)");
+    Serial.println();
+    
+    Serial.println("👆 TOUCH:");
+    Serial.println("  touch_min_x            (0-4095)");
+    Serial.println("  touch_max_x            (0-4095)");
+    Serial.println("  touch_min_y            (0-4095)");
+    Serial.println("  touch_max_y            (0-4095)");
+    Serial.println("  touch_threshold        (0-65535)");
+    Serial.println("  touch_rotation         (0-3)");
+    Serial.println();
+    
+    Serial.println("📡 ESP-NOW:");
+    Serial.println("  espnow_channel         (0-14, 0=auto)");
+    Serial.println("  espnow_max_peers       (1-20)");
+    Serial.println("  espnow_heartbeat       (ms)");
+    Serial.println("  espnow_timeout         (ms)");
+    Serial.println("  espnow_peer_mac        (XX:XX:XX:XX:XX:XX)");
+    Serial.println();
+    
+    Serial.println("🕹️  JOYSTICK:");
+    Serial.println("  joy_deadzone           (0-100)");
+    Serial.println("  joy_update_interval    (ms)");
+    Serial.println("  joy_invert_x           (0/1)");
+    Serial.println("  joy_invert_y           (0/1)");
+    Serial.println("  joy_cal_x_min          (-32768 - 32767)");
+    Serial.println("  joy_cal_x_center       (-32768 - 32767)");
+    Serial.println("  joy_cal_x_max          (-32768 - 32767)");
+    Serial.println("  joy_cal_y_min          (-32768 - 32767)");
+    Serial.println("  joy_cal_y_center       (-32768 - 32767)");
+    Serial.println("  joy_cal_y_max          (-32768 - 32767)");
+    Serial.println();
+    
+    Serial.println("⚡ POWER:");
+    Serial.println("  auto_shutdown          (0/1)");
+    Serial.println();
+    
+    Serial.println("🐛 DEBUG:");
+    Serial.println("  debug_serial           (0/1)");
+    
+    printSeparator();
+}
+
+void SerialCommandHandler::handleConfigGet(const String& key) {
+    if (!config) {
+        Serial.println("❌ UserConfig nicht verfügbar");
+        return;
+    }
+    
+    String lowerKey = key;
+    lowerKey.toLowerCase();
+    
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "Config: %s", key.c_str());
+    printHeader(buffer);
+    
+    // Display
+    if (lowerKey == "backlight_default") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getBacklightDefault());
+    }
+    // Touch
+    else if (lowerKey == "touch_min_x") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getTouchMinX());
+    }
+    else if (lowerKey == "touch_max_x") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getTouchMaxX());
+    }
+    else if (lowerKey == "touch_min_y") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getTouchMinY());
+    }
+    else if (lowerKey == "touch_max_y") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getTouchMaxY());
+    }
+    else if (lowerKey == "touch_threshold") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getTouchThreshold());
+    }
+    else if (lowerKey == "touch_rotation") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getTouchRotation());
+    }
+    // ESP-NOW
+    else if (lowerKey == "espnow_channel") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getEspnowChannel());
+    }
+    else if (lowerKey == "espnow_max_peers") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getEspnowMaxPeers());
+    }
+    else if (lowerKey == "espnow_heartbeat") {
+        Serial.printf("%s = %lu\n", key.c_str(), config->getEspnowHeartbeat());
+    }
+    else if (lowerKey == "espnow_timeout") {
+        Serial.printf("%s = %lu\n", key.c_str(), config->getEspnowTimeout());
+    }
+    else if (lowerKey == "espnow_peer_mac") {
+        Serial.printf("%s = %s\n", key.c_str(), config->getEspnowPeerMac());
+    }
+    // Joystick
+    else if (lowerKey == "joy_deadzone") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyDeadzone());
+    }
+    else if (lowerKey == "joy_update_interval") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyUpdateInterval());
+    }
+    else if (lowerKey == "joy_invert_x") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyInvertX() ? 1 : 0);
+    }
+    else if (lowerKey == "joy_invert_y") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyInvertY() ? 1 : 0);
+    }
+    else if (lowerKey == "joy_cal_x_min") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyCalXMin());
+    }
+    else if (lowerKey == "joy_cal_x_center") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyCalXCenter());
+    }
+    else if (lowerKey == "joy_cal_x_max") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyCalXMax());
+    }
+    else if (lowerKey == "joy_cal_y_min") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyCalYMin());
+    }
+    else if (lowerKey == "joy_cal_y_center") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyCalYCenter());
+    }
+    else if (lowerKey == "joy_cal_y_max") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getJoyCalYMax());
+    }
+    // Power
+    else if (lowerKey == "auto_shutdown") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getAutoShutdown() ? 1 : 0);
+    }
+    // Debug
+    else if (lowerKey == "debug_serial") {
+        Serial.printf("%s = %d\n", key.c_str(), config->getDebugSerialEnabled() ? 1 : 0);
+    }
+    else {
+        Serial.printf("❌ Unbekannter Key: '%s'\n", key.c_str());
+        Serial.println("   Tippe 'config list' für alle Keys");
+    }
+    
+    printSeparator();
+}
+
+void SerialCommandHandler::handleConfigSet(const String& key, const String& value) {
+    if (!config) {
+        Serial.println("❌ UserConfig nicht verfügbar");
+        return;
+    }
+    
+    String lowerKey = key;
+    lowerKey.toLowerCase();
+    
+    bool success = false;
+    String errorMsg = "";
+    
+    // Display
+    if (lowerKey == "backlight_default") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 255) {
+            config->setBacklightDefault((uint8_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-255 sein";
+        }
+    }
+    // Touch
+    else if (lowerKey == "touch_min_x") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 4095) {
+            config->setTouchCalibration(val, config->getTouchMaxX(), 
+                                       config->getTouchMinY(), config->getTouchMaxY());
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-4095 sein";
+        }
+    }
+    else if (lowerKey == "touch_max_x") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 4095) {
+            config->setTouchCalibration(config->getTouchMinX(), val,
+                                       config->getTouchMinY(), config->getTouchMaxY());
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-4095 sein";
+        }
+    }
+    else if (lowerKey == "touch_min_y") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 4095) {
+            config->setTouchCalibration(config->getTouchMinX(), config->getTouchMaxX(),
+                                       val, config->getTouchMaxY());
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-4095 sein";
+        }
+    }
+    else if (lowerKey == "touch_max_y") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 4095) {
+            config->setTouchCalibration(config->getTouchMinX(), config->getTouchMaxX(),
+                                       config->getTouchMinY(), val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-4095 sein";
+        }
+    }
+    else if (lowerKey == "touch_threshold") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 65535) {
+            config->setTouchThreshold((uint16_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-65535 sein";
+        }
+    }
+    else if (lowerKey == "touch_rotation") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 3) {
+            config->setTouchRotation((uint8_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-3 sein";
+        }
+    }
+    // ESP-NOW
+    else if (lowerKey == "espnow_channel") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 14) {
+            config->setEspnowChannel((uint8_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-14 sein";
+        }
+    }
+    else if (lowerKey == "espnow_max_peers") {
+        int val = value.toInt();
+        if (val >= 1 && val <= 20) {
+            config->setEspnowMaxPeers((uint8_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 1-20 sein";
+        }
+    }
+    else if (lowerKey == "espnow_heartbeat") {
+        unsigned long val = value.toInt();
+        config->setEspnowHeartbeat(val);
+        success = true;
+    }
+    else if (lowerKey == "espnow_timeout") {
+        unsigned long val = value.toInt();
+        config->setEspnowTimeout(val);
+        success = true;
+    }
+    else if (lowerKey == "espnow_peer_mac") {
+        // MAC-Adresse Validierung (XX:XX:XX:XX:XX:XX)
+        if (value.length() == 17) {
+            config->setEspnowPeerMac(value.c_str());
+            success = true;
+        } else {
+            errorMsg = "Format muss XX:XX:XX:XX:XX:XX sein";
+        }
+    }
+    // Joystick
+    else if (lowerKey == "joy_deadzone") {
+        int val = value.toInt();
+        if (val >= 0 && val <= 100) {
+            config->setJoyDeadzone((uint8_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss 0-100 sein";
+        }
+    }
+    else if (lowerKey == "joy_update_interval") {
+        int val = value.toInt();
+        if (val > 0) {
+            config->setJoyUpdateInterval((uint16_t)val);
+            success = true;
+        } else {
+            errorMsg = "Wert muss > 0 sein";
+        }
+    }
+    else if (lowerKey == "joy_invert_x") {
+        int val = value.toInt();
+        config->setJoyInvertX(val != 0);
+        success = true;
+    }
+    else if (lowerKey == "joy_invert_y") {
+        int val = value.toInt();
+        config->setJoyInvertY(val != 0);
+        success = true;
+    }
+    else if (lowerKey == "joy_cal_x_min") {
+        int val = value.toInt();
+        config->setJoyCalibration(0, val, config->getJoyCalXCenter(), config->getJoyCalXMax());
+        success = true;
+    }
+    else if (lowerKey == "joy_cal_x_center") {
+        int val = value.toInt();
+        config->setJoyCalibration(0, config->getJoyCalXMin(), val, config->getJoyCalXMax());
+        success = true;
+    }
+    else if (lowerKey == "joy_cal_x_max") {
+        int val = value.toInt();
+        config->setJoyCalibration(0, config->getJoyCalXMin(), config->getJoyCalXCenter(), val);
+        success = true;
+    }
+    else if (lowerKey == "joy_cal_y_min") {
+        int val = value.toInt();
+        config->setJoyCalibration(1, val, config->getJoyCalYCenter(), config->getJoyCalYMax());
+        success = true;
+    }
+    else if (lowerKey == "joy_cal_y_center") {
+        int val = value.toInt();
+        config->setJoyCalibration(1, config->getJoyCalYMin(), val, config->getJoyCalYMax());
+        success = true;
+    }
+    else if (lowerKey == "joy_cal_y_max") {
+        int val = value.toInt();
+        config->setJoyCalibration(1, config->getJoyCalYMin(), config->getJoyCalYCenter(), val);
+        success = true;
+    }
+    // Power
+    else if (lowerKey == "auto_shutdown") {
+        int val = value.toInt();
+        config->setAutoShutdownEnabled(val != 0);
+        success = true;
+    }
+    // Debug
+    else if (lowerKey == "debug_serial") {
+        int val = value.toInt();
+        config->setDebugSerialEnabled(val != 0);
+        success = true;
+    }
+    else {
+        Serial.printf("❌ Unbekannter Key: '%s'\n", key.c_str());
+        Serial.println("   Tippe 'config list' für alle Keys");
+        return;
+    }
+    
+    if (success) {
+        Serial.printf("✅ %s = %s\n", key.c_str(), value.c_str());
+        Serial.println("⚠️  Config noch nicht gespeichert!");
+        Serial.println("   Tippe 'config save' zum Speichern");
+    } else {
+        Serial.printf("❌ Fehler: %s\n", errorMsg.c_str());
+    }
+}
+
+void SerialCommandHandler::handleConfigSave() {
+    if (!config) {
+        Serial.println("❌ UserConfig nicht verfügbar");
+        return;
+    }
+    
+    Serial.print("💾 Speichere Config... ");
+    
+    if (config->save()) {
+        Serial.println("✅ Erfolgreich gespeichert");
+    } else {
+        Serial.println("❌ Speichern fehlgeschlagen");
+    }
+}
+
+void SerialCommandHandler::handleConfigReset() {
+    if (!config) {
+        Serial.println("❌ UserConfig nicht verfügbar");
+        return;
+    }
+    
+    Serial.print("⚠️  Config auf Defaults zurücksetzen? (j/n): ");
+    
+    // Warte auf Bestätigung
+    unsigned long timeout = millis() + 10000;
+    while (millis() < timeout) {
+        if (Serial.available()) {
+            char c = Serial.read();
+            Serial.println(c);
+            
+            if (c == 'j' || c == 'J' || c == 'y' || c == 'Y') {
+                config->reset();
+                Serial.println("✅ Config zurückgesetzt");
+                Serial.println("⚠️  Config noch nicht gespeichert!");
+                Serial.println("   Tippe 'config save' zum Speichern");
+                return;
+            } else if (c == 'n' || c == 'N') {
+                Serial.println("❌ Abgebrochen");
+                return;
+            }
+        }
+        delay(10);
+    }
+    
+    Serial.println("❌ Timeout - Abgebrochen");
 }
 
 void SerialCommandHandler::printSeparator() {

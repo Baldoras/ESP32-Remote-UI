@@ -27,13 +27,12 @@
 #define SERIAL_COMMAND_HANDLER_H
 
 #include <Arduino.h>
-#include "Globals.h"
 #include "SDCardHandler.h"
 #include "LogHandler.h"
 #include "BatteryMonitor.h"
 #include "ESPNowManager.h"
 #include "UserConfig.h"
-
+#include "Globals.h"
 
 class SerialCommandHandler {
 public:
@@ -87,6 +86,11 @@ private:
     void handleClearAll();
     void handleSysInfo();
     void handleConfig();
+    void handleConfigSet(const String& key, const String& value);
+    void handleConfigGet(const String& key);
+    void handleConfigList();
+    void handleConfigSave();
+    void handleConfigReset();
     void handleBattery();
     void handleESPNow();
 
