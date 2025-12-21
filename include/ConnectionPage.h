@@ -24,6 +24,7 @@ public:
     
 private:
     void updateConnectionStatus();
+    void checkPairingTimeout();
     void onPairClicked();
     void onDisconnectClicked();
     
@@ -31,6 +32,10 @@ private:
     uint8_t peerMac[6];
     bool isPaired;
     bool isConnected;
+    
+    // Pairing-Timeout
+    unsigned long pairingTimestamp;
+    const unsigned long pairingTimeout;  // 30 Sekunden
     
     UILabel* labelStatusValue;
     UILabel* labelOwnMacValue;

@@ -17,6 +17,8 @@ ConnectionPage::ConnectionPage(UIManager* ui, TFT_eSPI* tft)
     : UIPage("Connection", ui, tft)
     , isPaired(false)
     , isConnected(false)
+    , pairingTimestamp(0)
+    , pairingTimeout(30000)  // 30 Sekunden
     , labelStatusValue(nullptr)
     , labelOwnMacValue(nullptr)
     , labelPeerMacValue(nullptr)
@@ -50,7 +52,7 @@ void ConnectionPage::build() {
     labelStatusValue->setAlignment(TextAlignment::LEFT);
     labelStatusValue->setFontSize(2);
     labelStatusValue->setTextColor(COLOR_RED);
-    labelStatusValue->setTransparent(true);
+    labelStatusValue->setTransparent(false);
     addContentElement(labelStatusValue);
     
     yPos += 40;
@@ -91,6 +93,7 @@ void ConnectionPage::build() {
     int16_t btnX = contentX + 10;
     
     btnPair = new UIButton(btnX, yPos, btnWidth, btnHeight, "PAIR");
+    btnPair->setFontSize(1);
     btnPair->on(EventType::CLICK, [this](EventData* data) {
         this->onPairClicked();
     });
@@ -100,6 +103,7 @@ void ConnectionPage::build() {
     
     btnDisconnect = new UIButton(btnX, yPos, btnWidth, btnHeight, "DISCONNECT");
     btnDisconnect->on(EventType::CLICK, [this](EventData* data) {
+        btnDisconnect->setFontSize(1);
         this->onDisconnectClicked();
     });
     btnDisconnect->setEnabled(false);
@@ -115,6 +119,38 @@ void ConnectionPage::build() {
 
 void ConnectionPage::update() {
     updateConnectionStatus();
+    checkPairingTimeout();
+}
+
+void ConnectionPage::checkPairingTimeout() {
+    // Nur prüfen wenn gepaired aber nicht connected
+    if (!isPaired || isConnected) {
+        pairingTimestamp = 0;  // Reset bei Verbindung
+        return;
+    }
+    
+    // Wenn gerade erst gepaired, Timestamp setzen
+    if (pairingTimestamp == 0) {
+        pairingTimestamp = millis();
+        return;
+    }
+    
+    // Timeout-Check
+    unsigned long elapsed = millis() - pairingTimestamp;
+    if (elapsed >= pairingTimeout) {
+        Serial.printf("ConnectionPage: Pairing-Timeout nach %lums - entferne Peer\n", elapsed);
+        
+        // Peer entfernen
+        if (espNow.isInitialized() && espNow.removePeer(peerMac)) {
+            // isPaired wird in updateConnectionStatus() ermittelt
+            pairingTimestamp = 0;
+            
+            logger.logConnection(peerMacStr, "pairing_timeout");
+            
+            // UI sofort aktualisieren
+            updateConnectionStatus();
+        }
+    }
 }
 
 void ConnectionPage::setPeerMac(const char* macStr) {
@@ -132,26 +168,55 @@ void ConnectionPage::updateConnectionStatus() {
     if (!labelStatusValue) return;
     
     bool wasConnected = isConnected;
+    bool wasPaired = isPaired;  // ← NEU: Track auch isPaired-Änderungen
     
     isConnected = espNow.isInitialized() && espNow.isPeerConnected(peerMac);
     isPaired = espNow.isInitialized() && espNow.hasPeer(peerMac);
     
-    if (wasConnected != isConnected) {
+    // UI-Update wenn sich Connected ODER Paired geändert hat
+    if (wasConnected != isConnected || wasPaired != isPaired) {
         if (isConnected) {
             labelStatusValue->setText("Connected");
             labelStatusValue->setTextColor(COLOR_GREEN);
-            if (btnPair) btnPair->setEnabled(false);
-            if (btnDisconnect) btnDisconnect->setEnabled(true);
+            labelStatusValue->setNeedsRedraw(true);  // ← Korrekte Methode
+            if (btnPair) {
+                btnPair->setEnabled(false);
+                btnPair->setNeedsRedraw(true);
+            }
+            if (btnDisconnect) {
+                btnDisconnect->setEnabled(true);
+                btnDisconnect->setNeedsRedraw(true);
+            }
+            
+            Serial.println("ConnectionPage: Status → Connected (grün)");
         } else if (isPaired) {
             labelStatusValue->setText("Paired (Waiting...)");
             labelStatusValue->setTextColor(COLOR_YELLOW);
-            if (btnPair) btnPair->setEnabled(false);
-            if (btnDisconnect) btnDisconnect->setEnabled(true);
+            labelStatusValue->setNeedsRedraw(true);  // ← Korrekte Methode
+            if (btnPair) {
+                btnPair->setEnabled(false);
+                btnPair->setNeedsRedraw(true);
+            }
+            if (btnDisconnect) {
+                btnDisconnect->setEnabled(true);
+                btnDisconnect->setNeedsRedraw(true);
+            }
+            
+            Serial.println("ConnectionPage: Status → Paired (gelb)");
         } else {
             labelStatusValue->setText("Disconnected");
             labelStatusValue->setTextColor(COLOR_RED);
-            if (btnPair) btnPair->setEnabled(true);
-            if (btnDisconnect) btnDisconnect->setEnabled(false);
+            labelStatusValue->setNeedsRedraw(true);  // ← Korrekte Methode
+            if (btnPair) {
+                btnPair->setEnabled(true);
+                btnPair->setNeedsRedraw(true);
+            }
+            if (btnDisconnect) {
+                btnDisconnect->setEnabled(false);
+                btnDisconnect->setNeedsRedraw(true);
+            }
+            
+            Serial.println("ConnectionPage: Status → Disconnected (rot)");
         }
     }
 }
@@ -161,8 +226,9 @@ void ConnectionPage::onPairClicked() {
     
     if (espNow.isInitialized() && espNow.addPeer(peerMac)) {
         Serial.println("  Peer added");
-        isPaired = true;
-        updateConnectionStatus();
+        // isPaired wird in updateConnectionStatus() über hasPeer() ermittelt
+        pairingTimestamp = millis();  // Timeout-Timer starten
+        updateConnectionStatus();  // Sofortiges UI-Update
         
         logger.logConnection(peerMacStr, "paired");
     } else {
@@ -175,9 +241,9 @@ void ConnectionPage::onDisconnectClicked() {
     
     if (espNow.isInitialized() && espNow.removePeer(peerMac)) {
         Serial.println("  Peer removed");
-        isPaired = false;
-        isConnected = false;
-        updateConnectionStatus();
+        // isPaired und isConnected werden in updateConnectionStatus() ermittelt
+        pairingTimestamp = 0;  // Timeout-Timer zurücksetzen
+        updateConnectionStatus();  // Sofortiges UI-Update
     } else {
         Serial.println("  Remove peer failed");
     }
