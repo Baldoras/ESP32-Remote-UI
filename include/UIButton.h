@@ -24,6 +24,7 @@ public:
     void setTextColor(uint16_t color);
     void setPressedColor(uint16_t color);
     bool isPressed() const { return pressed; }
+    void setFontSize(uint8_t size);  // Font-Größe setzen (1-7)
 
 private:
     char text[32];              // Button-Text
@@ -31,6 +32,7 @@ private:
     bool wasInside;             // War Touch beim letzten Mal innerhalb?
     uint16_t pressedColor;      // Farbe wenn gedrückt
     uint16_t normalColor;       // Normale Farbe
+    uint8_t fontSize;           // Font-Größe (1-7)
     
     void drawButton(TFT_eSPI* tft, bool isPressed);
 };

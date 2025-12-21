@@ -5,7 +5,7 @@
 #include "include/UIButton.h"
 
 UIButton::UIButton(int16_t x, int16_t y, int16_t w, int16_t h, const char* txt)
-    : UIElement(x, y, w, h), pressed(false), wasInside(false) {
+    : UIElement(x, y, w, h), pressed(false), wasInside(false), fontSize(1) {
     
     strncpy(text, txt, sizeof(text) - 1);
     text[sizeof(text) - 1] = '\0';
@@ -87,6 +87,13 @@ void UIButton::setPressedColor(uint16_t color) {
     needsRedraw = true;
 }
 
+void UIButton::setFontSize(uint8_t size) {
+    if (size < 1) size = 1;
+    if (size > 7) size = 7;
+    fontSize = size;
+    needsRedraw = true;
+}
+
 void UIButton::drawButton(TFT_eSPI* tft, bool isPressed) {
     // Hintergrund
     uint16_t bgColor = isPressed ? pressedColor : normalColor;
@@ -102,6 +109,7 @@ void UIButton::drawButton(TFT_eSPI* tft, bool isPressed) {
     
     // Text zentriert
     tft->setTextDatum(MC_DATUM);
+    tft->setTextSize(fontSize);  // ← Font-Größe verwenden
     tft->setTextColor(enabled ? style.textColor : COLOR_GRAY);
     tft->drawString(text, x + width / 2, y + height / 2);
 }
