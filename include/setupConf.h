@@ -231,10 +231,6 @@ enum ErrorCode {
 #define ESPNOW_WORKER_PRIORITY   5      // Worker-Task Priorität (höher = wichtiger)
 #endif
 
-#ifndef ESPNOW_WORKER_CORE
-#define ESPNOW_WORKER_CORE       1      // Core für Worker (0 oder 1, 1 = App-Core)
-#endif
-
 // Paket-Größen (ESP-NOW Hardware-Limits)
 #ifndef ESPNOW_MAX_PACKET_SIZE
 #define ESPNOW_MAX_PACKET_SIZE  250     // ESP-NOW Maximum
