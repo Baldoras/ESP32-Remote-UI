@@ -1,8 +1,8 @@
 /**
  * UserConfig.h
  * 
- * User-Konfiguration mit SD-Card Storage
- * Erbt von ConfigManager und implementiert alle User-Settings
+ * User-Konfiguration mit Schema-basiertem Config-Management
+ * Erbt von ConfigManager und definiert die Struktur der User-Settings
  * 
  * Verwendung:
  *   UserConfig uConf;
@@ -18,16 +18,11 @@
 #define USER_CONFIG_H
 
 #include "ConfigManager.h"
-#include "userConf.h"
-#include <ArduinoJson.h>
-
-// Forward declaration
-class SDCardHandler;
 
 /**
- * UserConfigData Struktur - alle editierbaren User-Einstellungen
+ * UserConfigStruct - alle editierbaren User-Einstellungen
  */
-struct UserConfigData {
+struct UserConfigStruct {
     // Display
     uint8_t backlightDefault;
     
@@ -40,11 +35,11 @@ struct UserConfigData {
     uint8_t touchRotation;
     
     // ESP-NOW
-    uint8_t espnowChannel;       // WiFi-Kanal (0 = auto)
-    uint8_t espnowMaxPeers;      // Maximale Anzahl Peers
+    uint8_t espnowChannel;
+    uint8_t espnowMaxPeers;
     uint32_t espnowHeartbeat;
     uint32_t espnowTimeout;
-    char espnowPeerMac[18];      // "XX:XX:XX:XX:XX:XX"
+    char espnowPeerMac[18];  // "XX:XX:XX:XX:XX:XX"
     
     // Joystick
     uint8_t joyDeadzone;
@@ -60,9 +55,9 @@ struct UserConfigData {
     int16_t joyCalYCenter;
     int16_t joyCalYMax;
     
-    // Auto shutdown
+    // Power
     bool autoShutdownEnabled;
-
+    
     // Debug
     bool debugSerialEnabled;
 };
@@ -79,66 +74,49 @@ public:
      */
     ~UserConfig();
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // PUBLIC INTERFACE
+    // ═══════════════════════════════════════════════════════════════════════
+    
     /**
      * UserConfig initialisieren
      * @param configPath Pfad zur Config-Datei auf SD (z.B. "/config.json")
-     * @param sdHandler Pointer zum SDCardHandler (optional)
-     * @return true bei Erfolg
-     */
-    bool init(const char* configPath, SDCardHandler* sdHandler = nullptr);
-
-    /**
-     * SDCardHandler setzen (falls nicht bei init() übergeben)
      * @param sdHandler Pointer zum SDCardHandler
-     */
-    void setSDCardHandler(SDCardHandler* sdHandler);
-
-    /**
-     * Ist Storage verfügbar? (SD-Card gemountet)
-     * @return true wenn SDCardHandler verfügbar
-     */
-    bool isStorageAvailable() const;
-
-    /**
-     * Backup erstellen (.bak Datei)
      * @return true bei Erfolg
      */
-    bool createBackup();
-
+    bool init(const char* configPath, SDCardHandler* sdHandler);
+    
     /**
-     * Von Backup wiederherstellen
+     * Config laden (aus Storage)
      * @return true bei Erfolg
      */
-    bool restoreBackup();
-
+    bool load();
+    
     /**
-     * Backup existiert?
-     * @return true wenn .bak Datei vorhanden
+     * Config speichern (zu Storage)
+     * @return true bei Erfolg
      */
-    bool hasBackup() const;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // OVERRIDE - Implementierung der abstrakten Methoden
-    // ═══════════════════════════════════════════════════════════════════════
-
+    bool save();
+    
     /**
-     * Config auf Defaults zurücksetzen (aus userConf.h)
-     */
-    void reset() override;
-
-    /**
-     * Config validieren und korrigieren
+     * Config validieren
+     * Prüft alle Werte auf Gültigkeit und korrigiert falls nötig
      * @return true wenn gültig (oder korrigiert)
      */
-    bool validate() override;
-
+    bool validate();
+    
+    /**
+     * Config auf Defaults zurücksetzen
+     */
+    void reset();
+    
     /**
      * Debug-Info ausgeben
      */
-    void printInfo() const override;
+    void printInfo() const;
 
     // ═══════════════════════════════════════════════════════════════════════
-    // GETTER (Read-Only Access)
+    // GETTER (Lesezugriff)
     // ═══════════════════════════════════════════════════════════════════════
     
     // Display
@@ -173,9 +151,9 @@ public:
     int16_t getJoyCalYCenter() const { return config.joyCalYCenter; }
     int16_t getJoyCalYMax() const { return config.joyCalYMax; }
     
-    // Auto shutdown
-    bool getAutoShutdown() const {return config.autoShutdownEnabled;}
-
+    // Power
+    bool getAutoShutdownEnabled() const { return config.autoShutdownEnabled; }
+    
     // Debug
     bool getDebugSerialEnabled() const { return config.debugSerialEnabled; }
 
@@ -207,57 +185,26 @@ public:
     // Joystick Kalibrierung
     void setJoyCalibration(uint8_t axis, int16_t min, int16_t center, int16_t max);
     
-    // Auto-Shutdown
+    // Power
     void setAutoShutdownEnabled(bool value);
     
     // Debug
     void setDebugSerialEnabled(bool value);
 
-protected:
-    /**
-     * Laden aus SD-Card (überschreibt ConfigManager)
-     * @param content Output: Dateiinhalt als String
-     * @return true bei Erfolg
-     */
-    bool loadFromStorage(String& content) override;
-    
-    /**
-     * Speichern zu SD-Card (überschreibt ConfigManager)
-     * @param content JSON-String zum Speichern
-     * @return true bei Erfolg
-     */
-    bool saveToStorage(const String& content) override;
-
-    /**
-     * JSON zu UserConfigData deserialisieren
-     * @param jsonString JSON als String
-     * @return true bei Erfolg
-     */
-    bool deserializeFromJson(const String& jsonString) override;
-    
-    /**
-     * UserConfigData zu JSON serialisieren
-     * @param jsonString Output String für JSON
-     * @return true bei Erfolg
-     */
-    bool serializeToJson(String& jsonString) override;
-
 private:
-    UserConfigData config;      // User-Konfiguration
-    SDCardHandler* sdCard;      // SD-Card Handler
-    char configFilePath[64];    // Pfad zur Config-Datei
-    char backupFilePath[64];    // Pfad zur Backup-Datei (.bak)
-    bool initialized;           // Init erfolgt?
+    UserConfigStruct config;          // Aktuelle Config-Werte
+    UserConfigStruct defaults;        // Default-Werte
     
     /**
-     * Backup-Pfad generieren
+     * Config-Schema aufbauen
+     * Definiert Struktur und Metadaten aller Config-Items
      */
-    void generateBackupPath();
+    ConfigSchema buildSchema();
     
     /**
-     * Defaults aus userConf.h laden
+     * Default-Werte aus userConf.h initialisieren
      */
-    void loadDefaults();
+    void initDefaults();
 };
 
 #endif // USER_CONFIG_H

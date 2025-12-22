@@ -1,542 +1,224 @@
 /**
  * UserConfig.cpp
  * 
- * Implementation der User-Konfiguration
+ * Implementation der UserConfig Interface-Klasse
  */
 
 #include "include/UserConfig.h"
-#include "include/SDCardHandler.h"
+#include "include/userConf.h"
+#include "include/setupConf.h"
 
 UserConfig::UserConfig()
     : ConfigManager()
-    , sdCard(nullptr)
-    , initialized(false)
 {
-    memset(configFilePath, 0, sizeof(configFilePath));
-    memset(backupFilePath, 0, sizeof(backupFilePath));
+    // Defaults initialisieren
+    initDefaults();
+    
+    // Config auf Defaults setzen
+    memcpy(&config, &defaults, sizeof(UserConfigStruct));
 }
 
 UserConfig::~UserConfig() {
-    // SDCardHandler wird nicht gelöscht (Ownership extern)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PUBLIC INTERFACE
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool UserConfig::init(const char* configPath, SDCardHandler* sdHandler) {
-    if (!configPath) {
-        DEBUG_PRINTLN("UserConfig: ❌ Ungültiger Config-Pfad");
-        return false;
-    }
-    
-    // Config-Pfad speichern
-    strncpy(configFilePath, configPath, sizeof(configFilePath) - 1);
-    configFilePath[sizeof(configFilePath) - 1] = '\0';
+    DEBUG_PRINTLN("UserConfig: Initialisiere...");
     
     // SDCardHandler setzen
-    sdCard = sdHandler;
+    setSDCardHandler(sdHandler);
     
-    // Backup-Pfad generieren
-    generateBackupPath();
+    // Config-Pfad setzen
+    setConfigPath(configPath);
     
-    initialized = true;
-    
-    DEBUG_PRINTF("UserConfig: ✅ Initialisiert mit Pfad: %s\n", configFilePath);
+    DEBUG_PRINTLN("UserConfig: ✅ Initialisiert");
     return true;
 }
 
-void UserConfig::setSDCardHandler(SDCardHandler* sdHandler) {
-    sdCard = sdHandler;
-    DEBUG_PRINTLN("UserConfig: SDCardHandler gesetzt");
-}
-
-bool UserConfig::isStorageAvailable() const {
-    return (sdCard != nullptr && sdCard->isAvailable());
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// BACKUP / RESTORE
-// ═══════════════════════════════════════════════════════════════════════════
-
-bool UserConfig::createBackup() {
-    if (!isStorageAvailable()) {
-        DEBUG_PRINTLN("UserConfig: ❌ SD-Card nicht verfügbar");
+bool UserConfig::load() {
+    DEBUG_PRINTLN("UserConfig: Lade Config...");
+    
+    // 1. Aus Storage laden
+    String content;
+    if (!loadFromStorage(content)) {
+        DEBUG_PRINTLN("UserConfig: ⚠️ Keine Config gefunden, verwende Defaults");
+        reset();
         return false;
     }
     
-    DEBUG_PRINTF("UserConfig: Erstelle Backup: %s\n", backupFilePath);
+    // 2. Schema aufbauen
+    ConfigSchema schema = buildSchema();
     
-    // Config-Datei zu Backup kopieren
-    String content = sdCard->readFileString(configFilePath);
-    if (content.length() == 0) {
-        DEBUG_PRINTLN("UserConfig: ❌ Config-Datei leer oder nicht lesbar");
+    // 3. JSON deserialisieren
+    if (!deserializeFromJson(content, schema)) {
+        DEBUG_PRINTLN("UserConfig: ❌ JSON-Deserialisierung fehlgeschlagen");
         return false;
     }
     
-    if (!sdCard->writeFile(backupFilePath, content.c_str())) {
-        DEBUG_PRINTLN("UserConfig: ❌ Backup schreiben fehlgeschlagen");
-        return false;
+    // 4. Validieren
+    if (!validate()) {
+        DEBUG_PRINTLN("UserConfig: ⚠️ Werte korrigiert");
     }
     
-    DEBUG_PRINTLN("UserConfig: ✅ Backup erstellt");
+    setDirty(false);
+    
+    DEBUG_PRINTLN("UserConfig: ✅ Config geladen");
     return true;
 }
 
-bool UserConfig::restoreBackup() {
-    if (!isStorageAvailable()) {
-        DEBUG_PRINTLN("UserConfig: ❌ SD-Card nicht verfügbar");
+bool UserConfig::save() {
+    DEBUG_PRINTLN("UserConfig: Speichere Config...");
+    
+    // 1. Validieren vor dem Speichern
+    validate();
+    
+    // 2. Schema aufbauen
+    ConfigSchema schema = buildSchema();
+    
+    // 3. Zu JSON serialisieren
+    String content;
+    if (!serializeToJson(content, schema)) {
+        DEBUG_PRINTLN("UserConfig: ❌ JSON-Serialisierung fehlgeschlagen");
         return false;
     }
     
-    if (!sdCard->fileExists(backupFilePath)) {
-        DEBUG_PRINTLN("UserConfig: ❌ Backup-Datei nicht vorhanden");
+    // 4. Zu Storage speichern
+    if (!saveToStorage(content)) {
+        DEBUG_PRINTLN("UserConfig: ❌ Speichern fehlgeschlagen");
         return false;
     }
     
-    DEBUG_PRINTF("UserConfig: Stelle Backup wieder her: %s\n", backupFilePath);
+    setDirty(false);
     
-    // Backup zu Config kopieren
-    String content = sdCard->readFileString(backupFilePath);
-    if (content.length() == 0) {
-        DEBUG_PRINTLN("UserConfig: ❌ Backup-Datei leer oder nicht lesbar");
-        return false;
-    }
-    
-    if (!sdCard->writeFile(configFilePath, content.c_str())) {
-        DEBUG_PRINTLN("UserConfig: ❌ Config wiederherstellen fehlgeschlagen");
-        return false;
-    }
-    
-    DEBUG_PRINTLN("UserConfig: ✅ Backup wiederhergestellt");
-    
-    // Config neu laden
-    return load();
-}
-
-bool UserConfig::hasBackup() const {
-    if (!isStorageAvailable()) return false;
-    return sdCard->fileExists(backupFilePath);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PROTECTED - Storage Implementation
-// ═══════════════════════════════════════════════════════════════════════════
-
-bool UserConfig::loadFromStorage(String& content) {
-    if (!initialized) {
-        DEBUG_PRINTLN("UserConfig: ❌ Nicht initialisiert - init() aufrufen!");
-        return false;
-    }
-    
-    if (!isStorageAvailable()) {
-        DEBUG_PRINTLN("UserConfig: ⚠️ SD-Card nicht verfügbar");
-        return false;
-    }
-    
-    if (!sdCard->fileExists(configFilePath)) {
-        DEBUG_PRINTF("UserConfig: ⚠️ Config-Datei nicht gefunden: %s\n", configFilePath);
-        return false;
-    }
-    
-    DEBUG_PRINTF("UserConfig: Lade von SD: %s\n", configFilePath);
-    
-    // Datei lesen
-    content = sdCard->readFileString(configFilePath);
-    
-    if (content.length() == 0) {
-        DEBUG_PRINTLN("UserConfig: ❌ Datei leer oder Lesefehler");
-        return false;
-    }
-    
-    DEBUG_PRINTF("UserConfig: ✅ %d Bytes gelesen\n", content.length());
+    DEBUG_PRINTLN("UserConfig: ✅ Config gespeichert");
     return true;
-}
-
-bool UserConfig::saveToStorage(const String& content) {
-    if (!initialized) {
-        DEBUG_PRINTLN("UserConfig: ❌ Nicht initialisiert - init() aufrufen!");
-        return false;
-    }
-    
-    if (!isStorageAvailable()) {
-        DEBUG_PRINTLN("UserConfig: ❌ SD-Card nicht verfügbar");
-        return false;
-    }
-    
-    DEBUG_PRINTF("UserConfig: Speichere zu SD: %s\n", configFilePath);
-    
-    // Backup erstellen vor dem Überschreiben
-    if (sdCard->fileExists(configFilePath)) {
-        createBackup();
-    }
-    
-    // Datei schreiben
-    if (!sdCard->writeFile(configFilePath, content.c_str())) {
-        DEBUG_PRINTLN("UserConfig: ❌ Schreiben fehlgeschlagen");
-        return false;
-    }
-    
-    DEBUG_PRINTF("UserConfig: ✅ %d Bytes geschrieben\n", content.length());
-    return true;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PRIVATE
-// ═══════════════════════════════════════════════════════════════════════════
-
-void UserConfig::generateBackupPath() {
-    // .bak Extension anhängen
-    snprintf(backupFilePath, sizeof(backupFilePath), "%s.bak", configFilePath);
-}
-
-void UserConfig::loadDefaults() {
-    // Display
-    config.backlightDefault = BACKLIGHT_DEFAULT;
-    
-    // Touch
-    config.touchMinX = TOUCH_MIN_X;
-    config.touchMaxX = TOUCH_MAX_X;
-    config.touchMinY = TOUCH_MIN_Y;
-    config.touchMaxY = TOUCH_MAX_Y;
-    config.touchThreshold = TOUCH_THRESHOLD;
-    config.touchRotation = TOUCH_ROTATION;
-    
-    // ESP-NOW
-    config.espnowHeartbeat = ESPNOW_HEARTBEAT_INTERVAL;
-    config.espnowTimeout = ESPNOW_TIMEOUT_MS;
-    strncpy(config.espnowPeerMac, ESPNOW_PEER_DEVICE_MAC, sizeof(config.espnowPeerMac) - 1);
-    config.espnowChannel = ESPNOW_CHANNEL;
-    config.espnowMaxPeers = ESPNOW_MAX_PEERS;
-    config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
-    
-    // Joystick
-    config.joyDeadzone = JOY_DEADZONE;
-    config.joyUpdateInterval = JOY_UPDATE_INTERVAL;
-    config.joyInvertX = JOY_INVERT_X;
-    config.joyInvertY = JOY_INVERT_Y;
-    
-    // Joystick Kalibrierung
-    config.joyCalXMin = JOY_CAL_X_MIN;
-    config.joyCalXCenter = JOY_CAL_X_CENTER;
-    config.joyCalXMax = JOY_CAL_X_MAX;
-    config.joyCalYMin = JOY_CAL_Y_MIN;
-    config.joyCalYCenter = JOY_CAL_Y_CENTER;
-    config.joyCalYMax = JOY_CAL_Y_MAX;
-    
-    // Auto Shutdown
-    config.autoShutdownEnabled = AUTO_SHUTDOWN;
-
-    // Debug
-    config.debugSerialEnabled = DEBUG_SERIAL;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OVERRIDE - ConfigManager Implementierung
-// ═══════════════════════════════════════════════════════════════════════════
-
-void UserConfig::reset() {
-    DEBUG_PRINTLN("UserConfig: Setze auf Defaults zurück...");
-    loadDefaults();
-    setDirty(true);
-    DEBUG_PRINTLN("UserConfig: ✅ Defaults geladen");
 }
 
 bool UserConfig::validate() {
-    bool changed = false;
+    // Schema aufbauen
+    ConfigSchema schema = buildSchema();
     
-    // Display - Backlight (0-255)
-    if (config.backlightDefault > 255) {
-        config.backlightDefault = 255;
-        changed = true;
-    }
+    // Generische Validierung der Basis-Klasse verwenden
+    return ConfigManager::validate(schema);
+}
+
+void UserConfig::reset() {
+    DEBUG_PRINTLN("UserConfig: Setze auf Defaults zurück...");
     
-    // Touch - Rotation (0-3)
-    if (config.touchRotation > 3) {
-        config.touchRotation = TOUCH_ROTATION;
-        changed = true;
-    }
+    // Schema aufbauen
+    ConfigSchema schema = buildSchema();
     
-    // Touch - Threshold (1-255)
-    if (config.touchThreshold == 0 || config.touchThreshold > 255) {
-        config.touchThreshold = TOUCH_THRESHOLD;
-        changed = true;
-    }
+    // Defaults laden (aus Basis-Klasse)
+    loadDefaults(schema);
     
-    // ESP-NOW - Heartbeat (mindestens 100ms)
-    if (config.espnowHeartbeat < 100) {
-        config.espnowHeartbeat = 100;
-        changed = true;
-    }
+    setDirty(true);
     
-    // ESP-NOW - Timeout (mindestens 500ms)
-    if (config.espnowTimeout < 500) {
-        config.espnowTimeout = 500;
-    }
-    
-    // ESP-NOW - Channel (0-13)
-    if (config.espnowChannel > 13) {
-        config.espnowChannel = 0;
-        changed = true;
-    }
-    
-    // ESP-NOW - MaxPeers (1-20)
-    if (config.espnowMaxPeers == 0 || config.espnowMaxPeers > 20) {
-        config.espnowMaxPeers = ESPNOW_MAX_PEERS;
-        changed = true;
-        changed = true;
-    }
-    
-    // Joystick - Deadzone (0-50%)
-    if (config.joyDeadzone > 50) {
-        config.joyDeadzone = 50;
-        changed = true;
-    }
-    
-    // Joystick - Update Interval (mindestens 10ms)
-    if (config.joyUpdateInterval < 10) {
-        config.joyUpdateInterval = 10;
-        changed = true;
-    }
-    
-    // Joystick Kalibrierung - Plausibilität prüfen
-    if (config.joyCalXMin >= config.joyCalXCenter || config.joyCalXCenter >= config.joyCalXMax) {
-        config.joyCalXMin = JOY_CAL_X_MIN;
-        config.joyCalXCenter = JOY_CAL_X_CENTER;
-        config.joyCalXMax = JOY_CAL_X_MAX;
-        changed = true;
-    }
-    
-    if (config.joyCalYMin >= config.joyCalYCenter || config.joyCalYCenter >= config.joyCalYMax) {
-        config.joyCalYMin = JOY_CAL_Y_MIN;
-        config.joyCalYCenter = JOY_CAL_Y_CENTER;
-        config.joyCalYMax = JOY_CAL_Y_MAX;
-        changed = true;
-    }
-    
-    if (changed) {
-        DEBUG_PRINTLN("UserConfig: ⚠️ Ungültige Werte korrigiert");
-        setDirty(true);
-    }
-    
-    return true;
+    DEBUG_PRINTLN("UserConfig: ✅ Defaults geladen");
 }
 
 void UserConfig::printInfo() const {
-    DEBUG_PRINTLN("\n═══════════════════════════════════════════════");
-    DEBUG_PRINTLN("📋 USER CONFIG");
-    DEBUG_PRINTLN("═══════════════════════════════════════════════");
-    
-    DEBUG_PRINTLN("\n🖥️  DISPLAY:");
-    DEBUG_PRINTF("  Backlight Default: %d\n", config.backlightDefault);
-    
-    DEBUG_PRINTLN("\n👆 TOUCH:");
-    DEBUG_PRINTF("  Calibration X: %d - %d\n", config.touchMinX, config.touchMaxX);
-    DEBUG_PRINTF("  Calibration Y: %d - %d\n", config.touchMinY, config.touchMaxY);
-    DEBUG_PRINTF("  Threshold: %d\n", config.touchThreshold);
-    DEBUG_PRINTF("  Rotation: %d\n", config.touchRotation);
-    
-    DEBUG_PRINTLN("\n📡 ESP-NOW:");
-    DEBUG_PRINTF("  Heartbeat: %dms\n", config.espnowHeartbeat);
-    DEBUG_PRINTF("  Timeout: %dms\n", config.espnowTimeout);
-    DEBUG_PRINTF("  Peer MAC: %s\n", config.espnowPeerMac);
-    DEBUG_PRINTF("  Channel: %d\n", config.espnowChannel);
-    DEBUG_PRINTF("  Max Peers: %d\n", config.espnowMaxPeers);
-    
-    DEBUG_PRINTLN("\n🕹️  JOYSTICK:");
-    DEBUG_PRINTF("  Deadzone: %d%%\n", config.joyDeadzone);
-    DEBUG_PRINTF("  Update Interval: %dms\n", config.joyUpdateInterval);
-    DEBUG_PRINTF("  Invert X: %s\n", config.joyInvertX ? "Yes" : "No");
-    DEBUG_PRINTF("  Invert Y: %s\n", config.joyInvertY ? "Yes" : "No");
-    
-    DEBUG_PRINTLN("\n🎯 JOYSTICK CALIBRATION:");
-    DEBUG_PRINTF("  X-Axis: %d | %d | %d\n", config.joyCalXMin, config.joyCalXCenter, config.joyCalXMax);
-    DEBUG_PRINTF("  Y-Axis: %d | %d | %d\n", config.joyCalYMin, config.joyCalYCenter, config.joyCalYMax);
-    
-    DEBUG_PRINTLN("\n🔧 Auto-Shutdown:");
-    DEBUG_PRINTF("  Auto-Shutdown: %s\n", config.autoShutdownEnabled ? "Enabled" : "Disabled");
-
-    DEBUG_PRINTLN("\n🔧 DEBUG:");
-    DEBUG_PRINTF("  Serial Debug: %s\n", config.debugSerialEnabled ? "Enabled" : "Disabled");
-    
-    DEBUG_PRINTLN("\n💾 STORAGE:");
-    DEBUG_PRINTF("  Config Path: %s\n", configFilePath);
-    DEBUG_PRINTF("  Backup Path: %s\n", backupFilePath);
-    DEBUG_PRINTF("  Dirty Flag: %s\n", isDirty() ? "YES" : "NO");
-    
-    DEBUG_PRINTLN("═══════════════════════════════════════════════\n");
-}
-
-bool UserConfig::deserializeFromJson(const String& jsonString) {
-    DEBUG_PRINTLN("UserConfig: Deserialisiere JSON...");
-    
-    // JSON-Dokument erstellen (2KB sollte ausreichen)
-    JsonDocument doc;
-    
-    // JSON parsen
-    DeserializationError error = deserializeJson(doc, jsonString);
-    
-    if (error) {
-        DEBUG_PRINTF("UserConfig: ❌ JSON Parse Error: %s\n", error.c_str());
-        return false;
-    }
-    
-    // Defaults laden (falls Werte fehlen)
-    loadDefaults();
+    DEBUG_PRINTLN("═══════════════════════════════════════════════════════");
+    DEBUG_PRINTLN("UserConfig - Aktuelle Werte:");
+    DEBUG_PRINTLN("═══════════════════════════════════════════════════════");
     
     // Display
-    config.backlightDefault = doc["display"]["backlight"] | config.backlightDefault;
+    DEBUG_PRINTLN("[Display]");
+    DEBUG_PRINTF("  backlightDefault: %d\n", config.backlightDefault);
     
     // Touch
-    config.touchMinX = doc["touch"]["minX"] | config.touchMinX;
-    config.touchMaxX = doc["touch"]["maxX"] | config.touchMaxX;
-    config.touchMinY = doc["touch"]["minY"] | config.touchMinY;
-    config.touchMaxY = doc["touch"]["maxY"] | config.touchMaxY;
-    config.touchThreshold = doc["touch"]["threshold"] | config.touchThreshold;
-    config.touchRotation = doc["touch"]["rotation"] | config.touchRotation;
+    DEBUG_PRINTLN("[Touch]");
+    DEBUG_PRINTF("  touchMinX: %d\n", config.touchMinX);
+    DEBUG_PRINTF("  touchMaxX: %d\n", config.touchMaxX);
+    DEBUG_PRINTF("  touchMinY: %d\n", config.touchMinY);
+    DEBUG_PRINTF("  touchMaxY: %d\n", config.touchMaxY);
+    DEBUG_PRINTF("  touchThreshold: %d\n", config.touchThreshold);
+    DEBUG_PRINTF("  touchRotation: %d\n", config.touchRotation);
     
     // ESP-NOW
-    config.espnowHeartbeat = doc["espnow"]["heartbeat"] | config.espnowHeartbeat;
-    config.espnowTimeout = doc["espnow"]["timeout"] | config.espnowTimeout;
-    const char* mac = doc["espnow"]["peerMac"] | config.espnowPeerMac;
-    strncpy(config.espnowPeerMac, mac, sizeof(config.espnowPeerMac) - 1);
-    config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
-    config.espnowChannel = doc["espnow"]["channel"] | config.espnowChannel;
-    config.espnowMaxPeers = doc["espnow"]["maxPeers"] | config.espnowMaxPeers;
+    DEBUG_PRINTLN("[ESP-NOW]");
+    DEBUG_PRINTF("  espnowChannel: %d\n", config.espnowChannel);
+    DEBUG_PRINTF("  espnowMaxPeers: %d\n", config.espnowMaxPeers);
+    DEBUG_PRINTF("  espnowHeartbeat: %lu ms\n", config.espnowHeartbeat);
+    DEBUG_PRINTF("  espnowTimeout: %lu ms\n", config.espnowTimeout);
+    DEBUG_PRINTF("  espnowPeerMac: %s\n", config.espnowPeerMac);
     
     // Joystick
-    config.joyDeadzone = doc["joystick"]["deadzone"] | config.joyDeadzone;
-    config.joyUpdateInterval = doc["joystick"]["updateInterval"] | config.joyUpdateInterval;
-    config.joyInvertX = doc["joystick"]["invertX"] | config.joyInvertX;
-    config.joyInvertY = doc["joystick"]["invertY"] | config.joyInvertY;
+    DEBUG_PRINTLN("[Joystick]");
+    DEBUG_PRINTF("  joyDeadzone: %d %%\n", config.joyDeadzone);
+    DEBUG_PRINTF("  joyUpdateInterval: %d ms\n", config.joyUpdateInterval);
+    DEBUG_PRINTF("  joyInvertX: %s\n", config.joyInvertX ? "true" : "false");
+    DEBUG_PRINTF("  joyInvertY: %s\n", config.joyInvertY ? "true" : "false");
     
     // Joystick Kalibrierung
-    config.joyCalXMin = doc["joystick"]["cal"]["xMin"] | config.joyCalXMin;
-    config.joyCalXCenter = doc["joystick"]["cal"]["xCenter"] | config.joyCalXCenter;
-    config.joyCalXMax = doc["joystick"]["cal"]["xMax"] | config.joyCalXMax;
-    config.joyCalYMin = doc["joystick"]["cal"]["yMin"] | config.joyCalYMin;
-    config.joyCalYCenter = doc["joystick"]["cal"]["yCenter"] | config.joyCalYCenter;
-    config.joyCalYMax = doc["joystick"]["cal"]["yMax"] | config.joyCalYMax;
+    DEBUG_PRINTLN("[Joystick Kalibrierung]");
+    DEBUG_PRINTF("  X-Axis: min=%d, center=%d, max=%d\n", 
+                 config.joyCalXMin, config.joyCalXCenter, config.joyCalXMax);
+    DEBUG_PRINTF("  Y-Axis: min=%d, center=%d, max=%d\n",
+                 config.joyCalYMin, config.joyCalYCenter, config.joyCalYMax);
     
-    // Auto-Shutdown
-    config.autoShutdownEnabled = doc["autoshutdown"]["autoShutdownEnabled"] | config.autoShutdownEnabled;
-
+    // Power
+    DEBUG_PRINTLN("[Power]");
+    DEBUG_PRINTF("  autoShutdownEnabled: %s\n", config.autoShutdownEnabled ? "true" : "false");
+    
     // Debug
-    config.debugSerialEnabled = doc["debug"]["serialEnabled"] | config.debugSerialEnabled;
+    DEBUG_PRINTLN("[Debug]");
+    DEBUG_PRINTF("  debugSerialEnabled: %s\n", config.debugSerialEnabled ? "true" : "false");
     
-    DEBUG_PRINTLN("UserConfig: ✅ JSON deserialisiert");
-    return true;
-}
-
-bool UserConfig::serializeToJson(String& jsonString) {
-    DEBUG_PRINTLN("UserConfig: Serialisiere zu JSON...");
-    
-    // JSON-Dokument erstellen
-    JsonDocument doc;
-    
-    // Display
-    doc["display"]["backlight"] = config.backlightDefault;
-    
-    // Touch
-    doc["touch"]["minX"] = config.touchMinX;
-    doc["touch"]["maxX"] = config.touchMaxX;
-    doc["touch"]["minY"] = config.touchMinY;
-    doc["touch"]["maxY"] = config.touchMaxY;
-    doc["touch"]["threshold"] = config.touchThreshold;
-    doc["touch"]["rotation"] = config.touchRotation;
-    
-    // ESP-NOW
-    doc["espnow"]["heartbeat"] = config.espnowHeartbeat;
-    doc["espnow"]["timeout"] = config.espnowTimeout;
-    doc["espnow"]["peerMac"] = config.espnowPeerMac;
-    doc["espnow"]["channel"] = config.espnowChannel;
-    doc["espnow"]["maxPeers"] = config.espnowMaxPeers;
-    
-    // Joystick
-    doc["joystick"]["deadzone"] = config.joyDeadzone;
-    doc["joystick"]["updateInterval"] = config.joyUpdateInterval;
-    doc["joystick"]["invertX"] = config.joyInvertX;
-    doc["joystick"]["invertY"] = config.joyInvertY;
-    
-    // Joystick Kalibrierung
-    doc["joystick"]["cal"]["xMin"] = config.joyCalXMin;
-    doc["joystick"]["cal"]["xCenter"] = config.joyCalXCenter;
-    doc["joystick"]["cal"]["xMax"] = config.joyCalXMax;
-    doc["joystick"]["cal"]["yMin"] = config.joyCalYMin;
-    doc["joystick"]["cal"]["yCenter"] = config.joyCalYCenter;
-    doc["joystick"]["cal"]["yMax"] = config.joyCalYMax;
-    
-    // Autoshutdown
-    doc["autoshutdown"]["autoShutdownEnabled"] = config.autoShutdownEnabled;
-
-    // Debug
-    doc["debug"]["serialEnabled"] = config.debugSerialEnabled;
-    
-    // Zu String serialisieren (formatiert mit Einrückung)
-    if (serializeJsonPretty(doc, jsonString) == 0) {
-        DEBUG_PRINTLN("UserConfig: ❌ Serialisierung fehlgeschlagen");
-        return false;
-    }
-    
-    DEBUG_PRINTLN("UserConfig: ✅ JSON serialisiert");
-    return true;
+    DEBUG_PRINTLN("═══════════════════════════════════════════════════════");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SETTER mit Dirty-Tracking
+// SETTER (mit Dirty-Tracking)
 // ═══════════════════════════════════════════════════════════════════════════
 
 void UserConfig::setBacklightDefault(uint8_t value) {
-    if (value > 255) value = 255;
-    if (config.backlightDefault != value) {
-        config.backlightDefault = value;
-        setDirty(true);
-    }
+    config.backlightDefault = value;
+    setDirty(true);
 }
 
 void UserConfig::setTouchCalibration(int16_t minX, int16_t maxX, int16_t minY, int16_t maxY) {
-    bool changed = false;
-    
-    if (config.touchMinX != minX) { config.touchMinX = minX; changed = true; }
-    if (config.touchMaxX != maxX) { config.touchMaxX = maxX; changed = true; }
-    if (config.touchMinY != minY) { config.touchMinY = minY; changed = true; }
-    if (config.touchMaxY != maxY) { config.touchMaxY = maxY; changed = true; }
-    
-    if (changed) setDirty(true);
+    config.touchMinX = minX;
+    config.touchMaxX = maxX;
+    config.touchMinY = minY;
+    config.touchMaxY = maxY;
+    setDirty(true);
 }
 
 void UserConfig::setTouchThreshold(uint16_t value) {
-    if (value == 0) value = 1;
-    if (value > 255) value = 255;
-    if (config.touchThreshold != value) {
-        config.touchThreshold = value;
-        setDirty(true);
-    }
+    config.touchThreshold = value;
+    setDirty(true);
 }
 
 void UserConfig::setTouchRotation(uint8_t value) {
-    if (value > 3) value = 3;
-    if (config.touchRotation != value) {
-        config.touchRotation = value;
-        setDirty(true);
-    }
+    config.touchRotation = value;
+    setDirty(true);
+}
+
+void UserConfig::setEspnowChannel(uint8_t value) {
+    config.espnowChannel = value;
+    setDirty(true);
+}
+
+void UserConfig::setEspnowMaxPeers(uint8_t value) {
+    config.espnowMaxPeers = value;
+    setDirty(true);
 }
 
 void UserConfig::setEspnowHeartbeat(uint32_t value) {
-    if (value < 100) value = 100;
-    if (config.espnowHeartbeat != value) {
-        config.espnowHeartbeat = value;
-        setDirty(true);
-    }
+    config.espnowHeartbeat = value;
+    setDirty(true);
 }
 
 void UserConfig::setEspnowTimeout(uint32_t value) {
-    if (value < 500) value = 500;
-    if (config.espnowTimeout != value) {
-        config.espnowTimeout = value;
-        setDirty(true);
-    }
+    config.espnowTimeout = value;
+    setDirty(true);
 }
 
 void UserConfig::setEspnowPeerMac(const char* mac) {
-    if (!mac) return;
-    if (strcmp(config.espnowPeerMac, mac) != 0) {
+    if (mac) {
         strncpy(config.espnowPeerMac, mac, sizeof(config.espnowPeerMac) - 1);
         config.espnowPeerMac[sizeof(config.espnowPeerMac) - 1] = '\0';
         setDirty(true);
@@ -544,77 +226,357 @@ void UserConfig::setEspnowPeerMac(const char* mac) {
 }
 
 void UserConfig::setJoyDeadzone(uint8_t value) {
-    if (value > 50) value = 50;
-    if (config.joyDeadzone != value) {
-        config.joyDeadzone = value;
-        setDirty(true);
-    }
+    config.joyDeadzone = value;
+    setDirty(true);
 }
 
 void UserConfig::setJoyUpdateInterval(uint16_t value) {
-    if (value < 10) value = 10;
-    if (config.joyUpdateInterval != value) {
-        config.joyUpdateInterval = value;
-        setDirty(true);
-    }
+    config.joyUpdateInterval = value;
+    setDirty(true);
 }
 
 void UserConfig::setJoyInvertX(bool value) {
-    if (config.joyInvertX != value) {
-        config.joyInvertX = value;
-        setDirty(true);
-    }
+    config.joyInvertX = value;
+    setDirty(true);
 }
 
 void UserConfig::setJoyInvertY(bool value) {
-    if (config.joyInvertY != value) {
-        config.joyInvertY = value;
-        setDirty(true);
-    }
+    config.joyInvertY = value;
+    setDirty(true);
 }
 
 void UserConfig::setJoyCalibration(uint8_t axis, int16_t min, int16_t center, int16_t max) {
-    bool changed = false;
-    
-    if (axis == 0) { // X-Achse
-        if (config.joyCalXMin != min) { config.joyCalXMin = min; changed = true; }
-        if (config.joyCalXCenter != center) { config.joyCalXCenter = center; changed = true; }
-        if (config.joyCalXMax != max) { config.joyCalXMax = max; changed = true; }
-    } else if (axis == 1) { // Y-Achse
-        if (config.joyCalYMin != min) { config.joyCalYMin = min; changed = true; }
-        if (config.joyCalYCenter != center) { config.joyCalYCenter = center; changed = true; }
-        if (config.joyCalYMax != max) { config.joyCalYMax = max; changed = true; }
+    if (axis == 0) {
+        // X-Achse
+        config.joyCalXMin = min;
+        config.joyCalXCenter = center;
+        config.joyCalXMax = max;
+    } else {
+        // Y-Achse
+        config.joyCalYMin = min;
+        config.joyCalYCenter = center;
+        config.joyCalYMax = max;
     }
-    
-    if (changed) setDirty(true);
+    setDirty(true);
 }
 
 void UserConfig::setAutoShutdownEnabled(bool value) {
-    if (config.autoShutdownEnabled != value) {
-        config.autoShutdownEnabled = value;
-        setDirty(true);
-    }
+    config.autoShutdownEnabled = value;
+    setDirty(true);
 }
 
 void UserConfig::setDebugSerialEnabled(bool value) {
-    if (config.debugSerialEnabled != value) {
-        config.debugSerialEnabled = value;
-        setDirty(true);
-    }
-}
-void UserConfig::setEspnowChannel(uint8_t value) {
-    if (value > 13) value = 0;  // Auto bei ungültigem Wert
-    if (config.espnowChannel != value) {
-        config.espnowChannel = value;
-        setDirty(true);
-    }
+    config.debugSerialEnabled = value;
+    setDirty(true);
 }
 
-void UserConfig::setEspnowMaxPeers(uint8_t value) {
-    if (value == 0) value = 1;
-    if (value > 20) value = 20;
-    if (config.espnowMaxPeers != value) {
-        config.espnowMaxPeers = value;
-        setDirty(true);
-    }
+// ═══════════════════════════════════════════════════════════════════════════
+// PRIVATE - Schema Definition
+// ═══════════════════════════════════════════════════════════════════════════
+
+ConfigSchema UserConfig::buildSchema() {
+    // Statisches Array mit allen Config-Items
+    static ConfigItem items[] = {
+        // Display
+        {
+            .key = "backlightDefault",
+            .type = ConfigType::UINT8,
+            .valuePtr = &config.backlightDefault,
+            .defaultPtr = &defaults.backlightDefault,
+            .hasRange = true,
+            .minValue = 0,
+            .maxValue = 255,
+            .maxLength = 0
+        },
+        
+        // Touch
+        {
+            .key = "touchMinX",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.touchMinX,
+            .defaultPtr = &defaults.touchMinX,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "touchMaxX",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.touchMaxX,
+            .defaultPtr = &defaults.touchMaxX,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "touchMinY",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.touchMinY,
+            .defaultPtr = &defaults.touchMinY,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "touchMaxY",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.touchMaxY,
+            .defaultPtr = &defaults.touchMaxY,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "touchThreshold",
+            .type = ConfigType::UINT16,
+            .valuePtr = &config.touchThreshold,
+            .defaultPtr = &defaults.touchThreshold,
+            .hasRange = true,
+            .minValue = 1,
+            .maxValue = 255,
+            .maxLength = 0
+        },
+        {
+            .key = "touchRotation",
+            .type = ConfigType::UINT8,
+            .valuePtr = &config.touchRotation,
+            .defaultPtr = &defaults.touchRotation,
+            .hasRange = true,
+            .minValue = 0,
+            .maxValue = 3,
+            .maxLength = 0
+        },
+        
+        // ESP-NOW
+        {
+            .key = "espnowChannel",
+            .type = ConfigType::UINT8,
+            .valuePtr = &config.espnowChannel,
+            .defaultPtr = &defaults.espnowChannel,
+            .hasRange = true,
+            .minValue = 0,
+            .maxValue = 14,
+            .maxLength = 0
+        },
+        {
+            .key = "espnowMaxPeers",
+            .type = ConfigType::UINT8,
+            .valuePtr = &config.espnowMaxPeers,
+            .defaultPtr = &defaults.espnowMaxPeers,
+            .hasRange = true,
+            .minValue = 1,
+            .maxValue = 20,
+            .maxLength = 0
+        },
+        {
+            .key = "espnowHeartbeat",
+            .type = ConfigType::UINT32,
+            .valuePtr = &config.espnowHeartbeat,
+            .defaultPtr = &defaults.espnowHeartbeat,
+            .hasRange = true,
+            .minValue = 100,
+            .maxValue = 10000,
+            .maxLength = 0
+        },
+        {
+            .key = "espnowTimeout",
+            .type = ConfigType::UINT32,
+            .valuePtr = &config.espnowTimeout,
+            .defaultPtr = &defaults.espnowTimeout,
+            .hasRange = true,
+            .minValue = 500,
+            .maxValue = 30000,
+            .maxLength = 0
+        },
+        {
+            .key = "espnowPeerMac",
+            .type = ConfigType::STRING,
+            .valuePtr = &config.espnowPeerMac,
+            .defaultPtr = &defaults.espnowPeerMac,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = sizeof(config.espnowPeerMac)
+        },
+        
+        // Joystick
+        {
+            .key = "joyDeadzone",
+            .type = ConfigType::UINT8,
+            .valuePtr = &config.joyDeadzone,
+            .defaultPtr = &defaults.joyDeadzone,
+            .hasRange = true,
+            .minValue = 0,
+            .maxValue = 50,
+            .maxLength = 0
+        },
+        {
+            .key = "joyUpdateInterval",
+            .type = ConfigType::UINT16,
+            .valuePtr = &config.joyUpdateInterval,
+            .defaultPtr = &defaults.joyUpdateInterval,
+            .hasRange = true,
+            .minValue = 10,
+            .maxValue = 1000,
+            .maxLength = 0
+        },
+        {
+            .key = "joyInvertX",
+            .type = ConfigType::BOOL,
+            .valuePtr = &config.joyInvertX,
+            .defaultPtr = &defaults.joyInvertX,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "joyInvertY",
+            .type = ConfigType::BOOL,
+            .valuePtr = &config.joyInvertY,
+            .defaultPtr = &defaults.joyInvertY,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        
+        // Joystick Kalibrierung
+        {
+            .key = "joyCalXMin",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.joyCalXMin,
+            .defaultPtr = &defaults.joyCalXMin,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "joyCalXCenter",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.joyCalXCenter,
+            .defaultPtr = &defaults.joyCalXCenter,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "joyCalXMax",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.joyCalXMax,
+            .defaultPtr = &defaults.joyCalXMax,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "joyCalYMin",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.joyCalYMin,
+            .defaultPtr = &defaults.joyCalYMin,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "joyCalYCenter",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.joyCalYCenter,
+            .defaultPtr = &defaults.joyCalYCenter,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        {
+            .key = "joyCalYMax",
+            .type = ConfigType::INT16,
+            .valuePtr = &config.joyCalYMax,
+            .defaultPtr = &defaults.joyCalYMax,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        
+        // Power
+        {
+            .key = "autoShutdownEnabled",
+            .type = ConfigType::BOOL,
+            .valuePtr = &config.autoShutdownEnabled,
+            .defaultPtr = &defaults.autoShutdownEnabled,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        },
+        
+        // Debug
+        {
+            .key = "debugSerialEnabled",
+            .type = ConfigType::BOOL,
+            .valuePtr = &config.debugSerialEnabled,
+            .defaultPtr = &defaults.debugSerialEnabled,
+            .hasRange = false,
+            .minValue = 0,
+            .maxValue = 0,
+            .maxLength = 0
+        }
+    };
+    
+    // Schema zurückgeben
+    ConfigSchema schema;
+    schema.items = items;
+    schema.count = sizeof(items) / sizeof(ConfigItem);
+    
+    return schema;
+}
+
+void UserConfig::initDefaults() {
+    // Display
+    defaults.backlightDefault = BACKLIGHT_DEFAULT;
+    
+    // Touch
+    defaults.touchMinX = TOUCH_MIN_X;
+    defaults.touchMaxX = TOUCH_MAX_X;
+    defaults.touchMinY = TOUCH_MIN_Y;
+    defaults.touchMaxY = TOUCH_MAX_Y;
+    defaults.touchThreshold = TOUCH_THRESHOLD;
+    defaults.touchRotation = TOUCH_ROTATION;
+    
+    // ESP-NOW
+    defaults.espnowChannel = ESPNOW_CHANNEL;
+    defaults.espnowMaxPeers = ESPNOW_MAX_PEERS;
+    defaults.espnowHeartbeat = ESPNOW_HEARTBEAT_INTERVAL;
+    defaults.espnowTimeout = ESPNOW_TIMEOUT;
+    strncpy(defaults.espnowPeerMac, ESPNOW_PEER_MAC, sizeof(defaults.espnowPeerMac) - 1);
+    defaults.espnowPeerMac[sizeof(defaults.espnowPeerMac) - 1] = '\0';
+    
+    // Joystick
+    defaults.joyDeadzone = JOY_DEADZONE_PERCENT;
+    defaults.joyUpdateInterval = JOY_UPDATE_INTERVAL;
+    defaults.joyInvertX = JOY_INVERT_X;
+    defaults.joyInvertY = JOY_INVERT_Y;
+    
+    // Joystick Kalibrierung
+    defaults.joyCalXMin = JOY_CAL_X_MIN;
+    defaults.joyCalXCenter = JOY_CAL_X_CENTER;
+    defaults.joyCalXMax = JOY_CAL_X_MAX;
+    defaults.joyCalYMin = JOY_CAL_Y_MIN;
+    defaults.joyCalYCenter = JOY_CAL_Y_CENTER;
+    defaults.joyCalYMax = JOY_CAL_Y_MAX;
+    
+    // Power
+    defaults.autoShutdownEnabled = AUTO_SHUTDOWN;
+    
+    // Debug
+    defaults.debugSerialEnabled = DEBUG_SERIAL;
 }

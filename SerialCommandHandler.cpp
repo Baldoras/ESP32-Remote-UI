@@ -1,5 +1,10 @@
 /**
  * SerialCommandHandler.cpp
+ * 
+ * ANGEPASST FÜR NEUE USERCONFIG ARCHITEKTUR
+ * - Entfernt: espnow_channel, espnow_max_peers (hardware-spezifisch)
+ * - Hinzugefügt: auto_shutdown
+ * - Korrigiert: Getter/Setter Namen
  */
 
 #include "include/SerialCommandHandler.h"
@@ -560,8 +565,6 @@ void SerialCommandHandler::handleConfigList() {
     Serial.println();
     
     Serial.println("📡 ESP-NOW:");
-    Serial.println("  espnow_channel         (0-14, 0=auto)");
-    Serial.println("  espnow_max_peers       (1-20)");
     Serial.println("  espnow_heartbeat       (ms)");
     Serial.println("  espnow_timeout         (ms)");
     Serial.println("  espnow_peer_mac        (XX:XX:XX:XX:XX:XX)");
@@ -626,13 +629,7 @@ void SerialCommandHandler::handleConfigGet(const String& key) {
     else if (lowerKey == "touch_rotation") {
         Serial.printf("%s = %d\n", key.c_str(), config->getTouchRotation());
     }
-    // ESP-NOW
-    else if (lowerKey == "espnow_channel") {
-        Serial.printf("%s = %d\n", key.c_str(), config->getEspnowChannel());
-    }
-    else if (lowerKey == "espnow_max_peers") {
-        Serial.printf("%s = %d\n", key.c_str(), config->getEspnowMaxPeers());
-    }
+    // ESP-NOW (ENTFERNT: espnow_channel, espnow_max_peers)
     else if (lowerKey == "espnow_heartbeat") {
         Serial.printf("%s = %lu\n", key.c_str(), config->getEspnowHeartbeat());
     }
@@ -675,7 +672,7 @@ void SerialCommandHandler::handleConfigGet(const String& key) {
     }
     // Power
     else if (lowerKey == "auto_shutdown") {
-        Serial.printf("%s = %d\n", key.c_str(), config->getAutoShutdown() ? 1 : 0);
+        Serial.printf("%s = %d\n", key.c_str(), config->getAutoShutdownEnabled() ? 1 : 0);
     }
     // Debug
     else if (lowerKey == "debug_serial") {
@@ -770,25 +767,7 @@ void SerialCommandHandler::handleConfigSet(const String& key, const String& valu
             errorMsg = "Wert muss 0-3 sein";
         }
     }
-    // ESP-NOW
-    else if (lowerKey == "espnow_channel") {
-        int val = value.toInt();
-        if (val >= 0 && val <= 14) {
-            config->setEspnowChannel((uint8_t)val);
-            success = true;
-        } else {
-            errorMsg = "Wert muss 0-14 sein";
-        }
-    }
-    else if (lowerKey == "espnow_max_peers") {
-        int val = value.toInt();
-        if (val >= 1 && val <= 20) {
-            config->setEspnowMaxPeers((uint8_t)val);
-            success = true;
-        } else {
-            errorMsg = "Wert muss 1-20 sein";
-        }
-    }
+    // ESP-NOW (ENTFERNT: espnow_channel, espnow_max_peers)
     else if (lowerKey == "espnow_heartbeat") {
         unsigned long val = value.toInt();
         config->setEspnowHeartbeat(val);

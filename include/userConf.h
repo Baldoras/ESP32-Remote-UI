@@ -36,17 +36,17 @@
 // 📡 ESP-NOW BENUTZER-EINSTELLUNGEN
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define ESPNOW_MAX_PEERS          5                   // Maximale Anzahl Peers
+#define ESPNOW_MAX_PEERS          1                   // Maximale Anzahl Peers
 #define ESPNOW_CHANNEL            0                   // WiFi-Kanal (0 = auto)
 #define ESPNOW_HEARTBEAT_INTERVAL 500                 // Heartbeat alle 500ms
-#define ESPNOW_TIMEOUT_MS         2000                // Verbindungs-Timeout 2s
-#define ESPNOW_PEER_DEVICE_MAC    "11:22:33:44:55:66" // Peer device MAC (Beispiel)
+#define ESPNOW_TIMEOUT            2000                // Verbindungs-Timeout 2s
+#define ESPNOW_PEER_MAC           "11:22:33:44:55:66" // Peer device MAC
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🕹️ JOYSTICK BENUTZER-EINSTELLUNGEN
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define JOY_DEADZONE         5     // Deadzone in % (0-100)
+#define JOY_DEADZONE_PERCENT 5     // Deadzone in % (0-50)
 #define JOY_UPDATE_INTERVAL  20    // Update-Intervall in ms
 #define JOY_INVERT_X         true  // X-Achse invertieren
 #define JOY_INVERT_Y         true  // Y-Achse invertieren
@@ -61,15 +61,15 @@
 #define JOY_CAL_Y_MAX        4000  // Y-Achse Maximum
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔧 DEBUG EINSTELLUNGEN
+// ⚡ Power
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define AUTO_SHUTDOWN        true    // Auto shutdown enabled
+#define AUTO_SHUTDOWN true
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔧 DEBUG EINSTELLUNGEN
 // ═══════════════════════════════════════════════════════════════════════════
 
 #define DEBUG_SERIAL         true    // Debug-Ausgaben aktivieren
-
 
 #endif // USER_CONF_H

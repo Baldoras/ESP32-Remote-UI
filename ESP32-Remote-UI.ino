@@ -21,6 +21,7 @@
 #include "include/PageManager.h"
 #include "include/ESPNowManager.h"
 #include "include/UserConfig.h"
+#include "include/userConf.h"
 #include "include/Globals.h"
 #include "include/SerialCommandHandler.h"
 
@@ -71,7 +72,7 @@ void setup() {
     
     userConfig.init("/config.json", &sdCard);
     
-    if (sdAvailable && userConfig.isStorageAvailable()) {
+    if (sdAvailable) {
         if (userConfig.load()) {
             Serial.println("  ✅ Config geladen (SD-Card)");
         } else {
@@ -193,12 +194,12 @@ void setup() {
     // ═══════════════════════════════════════════════════════════════
     Serial.println("→ ESP-NOW...");
 
-    if (espNow.begin(userConfig.getEspnowChannel())) {
+    if (espNow.begin(ESPNOW_CHANNEL)) {
         Serial.println("  ✅ ESP-NOW OK");
         Serial.printf("  MAC: %s\n", espNow.getOwnMacString().c_str());
         
         espNow.setHeartbeat(true, userConfig.getEspnowHeartbeat());
-        espNow.setMaxPeers(userConfig.getEspnowMaxPeers());
+        espNow.setMaxPeers(ESPNOW_MAX_PEERS);
         espNow.setTimeout(userConfig.getEspnowTimeout());
         
         Serial.printf("  Heartbeat: %dms, Timeout: %dms\n",
@@ -294,11 +295,6 @@ void setup() {
     Serial.println();
     
     logger.logBootComplete(setupTime, true);
-    
-    if (userConfig.isDirty()) {
-        Serial.println("Config geändert - speichere...");
-        userConfig.save();
-    }
 }
 
 void loop() {

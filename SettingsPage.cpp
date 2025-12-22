@@ -39,7 +39,7 @@ void SettingsPage::build() {
     addContentElement(sldBrightness);
 
     UICheckBox* chkAutoShutdown = new UICheckBox(layout.contentX + 20, layout.contentY + 90, 30, "Auto shutdown");
-    chkAutoShutdown->setChecked(userConfig.getAutoShutdown());
+    chkAutoShutdown->setChecked(userConfig.getAutoShutdownEnabled());
     chkAutoShutdown->on(EventType::VALUE_CHANGED, [this](EventData* data) {
         userConfig.setAutoShutdownEnabled(data->value);       
     });

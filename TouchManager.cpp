@@ -5,8 +5,10 @@
  * Implementation des Touch-Managers mit UserConfig Integration
  */
 
+#include "include/userConf.h"
 #include "include/TouchManager.h"
 #include "include/UserConfig.h"
+
 
 TouchManager::TouchManager()
     : ts(nullptr)  // WICHTIG: Pointer auf nullptr initialisieren!
