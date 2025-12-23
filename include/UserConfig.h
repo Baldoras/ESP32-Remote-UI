@@ -1,7 +1,7 @@
 /**
  * UserConfig.h
  * 
- * User-Konfiguration mit Schema-basiertem Config-Management
+ * User-Konfiguration mit Scheme-basiertem Config-Management
  * Erbt von ConfigManager und definiert die Struktur der User-Settings
  * 
  * Verwendung:
@@ -115,6 +115,8 @@ public:
      */
     void printInfo() const;
 
+    ConfigScheme getConfigScheme() const;
+
     // ═══════════════════════════════════════════════════════════════════════
     // GETTER (Lesezugriff)
     // ═══════════════════════════════════════════════════════════════════════
@@ -191,15 +193,17 @@ public:
     // Debug
     void setDebugSerialEnabled(bool value);
 
+    ConfigScheme getConfigScheme();
+    
 private:
     UserConfigStruct config;          // Aktuelle Config-Werte
     UserConfigStruct defaults;        // Default-Werte
     
     /**
-     * Config-Schema aufbauen
+     * Config-Scheme aufbauen
      * Definiert Struktur und Metadaten aller Config-Items
      */
-    ConfigSchema buildSchema();
+    ConfigScheme buildScheme();
     
     /**
      * Default-Werte aus userConf.h initialisieren

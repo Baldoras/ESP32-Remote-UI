@@ -45,6 +45,7 @@ enum class ConfigType {
  */
 struct ConfigItem {
     const char* key;        // JSON-Schlüssel
+    const char* category;   // Kategorie (z.B. "Display", "Touch", "ESP-NOW")
     ConfigType type;        // Datentyp
     void* valuePtr;         // Pointer auf Wert in config struct
     void* defaultPtr;       // Pointer auf Default-Wert
@@ -60,7 +61,7 @@ struct ConfigItem {
  * Config-Schema
  * Array von ConfigItems
  */
-struct ConfigSchema {
+struct ConfigScheme {
     const ConfigItem* items;
     size_t count;
 };
@@ -151,7 +152,7 @@ protected:
      * @param schema Config-Schema
      * @return true bei Erfolg
      */
-    bool deserializeFromJson(const String& jsonString, const ConfigSchema& schema);
+    bool deserializeFromJson(const String& jsonString, const ConfigScheme& schema);
     
     /**
      * Config-Daten zu JSON serialisieren
@@ -160,7 +161,7 @@ protected:
      * @param schema Config-Schema
      * @return true bei Erfolg
      */
-    bool serializeToJson(String& jsonString, const ConfigSchema& schema);
+    bool serializeToJson(String& jsonString, const ConfigScheme& schema);
 
     // ═══════════════════════════════════════════════════════════════════════
     // VALIDATION
@@ -173,7 +174,7 @@ protected:
      * @param schema Config-Schema
      * @return true wenn gültig (oder korrigiert)
      */
-    bool validate(const ConfigSchema& schema);
+    bool validate(const ConfigScheme& schema);
 
     // ═══════════════════════════════════════════════════════════════════════
     // DEFAULTS
@@ -184,7 +185,7 @@ protected:
      * Kopiert Default-Werte aus Schema
      * @param schema Config-Schema
      */
-    void loadDefaults(const ConfigSchema& schema);
+    void loadDefaults(const ConfigScheme& schema);
     
     /**
      * Einzelnes Config-Item auf Default zurücksetzen

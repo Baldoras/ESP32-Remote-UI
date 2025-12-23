@@ -49,11 +49,11 @@ bool UserConfig::load() {
         return false;
     }
     
-    // 2. Schema aufbauen
-    ConfigSchema schema = buildSchema();
+    // 2. Scheme aufbauen
+    ConfigScheme scheme = buildScheme();
     
     // 3. JSON deserialisieren
-    if (!deserializeFromJson(content, schema)) {
+    if (!deserializeFromJson(content, scheme)) {
         DEBUG_PRINTLN("UserConfig: ❌ JSON-Deserialisierung fehlgeschlagen");
         return false;
     }
@@ -75,12 +75,12 @@ bool UserConfig::save() {
     // 1. Validieren vor dem Speichern
     validate();
     
-    // 2. Schema aufbauen
-    ConfigSchema schema = buildSchema();
+    // 2. Scheme aufbauen
+    ConfigScheme scheme = buildScheme();
     
     // 3. Zu JSON serialisieren
     String content;
-    if (!serializeToJson(content, schema)) {
+    if (!serializeToJson(content, scheme)) {
         DEBUG_PRINTLN("UserConfig: ❌ JSON-Serialisierung fehlgeschlagen");
         return false;
     }
@@ -98,21 +98,21 @@ bool UserConfig::save() {
 }
 
 bool UserConfig::validate() {
-    // Schema aufbauen
-    ConfigSchema schema = buildSchema();
+    // Scheme aufbauen
+    ConfigScheme scheme = buildScheme();
     
     // Generische Validierung der Basis-Klasse verwenden
-    return ConfigManager::validate(schema);
+    return ConfigManager::validate(scheme);
 }
 
 void UserConfig::reset() {
     DEBUG_PRINTLN("UserConfig: Setze auf Defaults zurück...");
     
-    // Schema aufbauen
-    ConfigSchema schema = buildSchema();
+    // Scheme aufbauen
+    ConfigScheme scheme = buildScheme();
     
     // Defaults laden (aus Basis-Klasse)
-    loadDefaults(schema);
+    loadDefaults(scheme);
     
     setDirty(true);
     
@@ -168,6 +168,10 @@ void UserConfig::printInfo() const {
     DEBUG_PRINTF("  debugSerialEnabled: %s\n", config.debugSerialEnabled ? "true" : "false");
     
     DEBUG_PRINTLN("═══════════════════════════════════════════════════════");
+}
+
+ConfigScheme UserConfig::getConfigScheme() {
+    return buildScheme();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -271,15 +275,16 @@ void UserConfig::setDebugSerialEnabled(bool value) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PRIVATE - Schema Definition
+// PRIVATE - Scheme Definition
 // ═══════════════════════════════════════════════════════════════════════════
 
-ConfigSchema UserConfig::buildSchema() {
+ConfigScheme UserConfig::buildScheme() {
     // Statisches Array mit allen Config-Items
     static ConfigItem items[] = {
         // Display
         {
             .key = "backlightDefault",
+            .category = "Display",
             .type = ConfigType::UINT8,
             .valuePtr = &config.backlightDefault,
             .defaultPtr = &defaults.backlightDefault,
@@ -292,6 +297,7 @@ ConfigSchema UserConfig::buildSchema() {
         // Touch
         {
             .key = "touchMinX",
+            .category = "Touch",
             .type = ConfigType::INT16,
             .valuePtr = &config.touchMinX,
             .defaultPtr = &defaults.touchMinX,
@@ -302,6 +308,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "touchMaxX",
+            .category = "Touch",
             .type = ConfigType::INT16,
             .valuePtr = &config.touchMaxX,
             .defaultPtr = &defaults.touchMaxX,
@@ -312,6 +319,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "touchMinY",
+            .category = "Touch",
             .type = ConfigType::INT16,
             .valuePtr = &config.touchMinY,
             .defaultPtr = &defaults.touchMinY,
@@ -322,6 +330,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "touchMaxY",
+            .category = "Touch",
             .type = ConfigType::INT16,
             .valuePtr = &config.touchMaxY,
             .defaultPtr = &defaults.touchMaxY,
@@ -332,6 +341,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "touchThreshold",
+            .category = "Touch",
             .type = ConfigType::UINT16,
             .valuePtr = &config.touchThreshold,
             .defaultPtr = &defaults.touchThreshold,
@@ -342,6 +352,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "touchRotation",
+            .category = "Touch",
             .type = ConfigType::UINT8,
             .valuePtr = &config.touchRotation,
             .defaultPtr = &defaults.touchRotation,
@@ -354,6 +365,7 @@ ConfigSchema UserConfig::buildSchema() {
         // ESP-NOW
         {
             .key = "espnowChannel",
+            .category = "ESP-Now",
             .type = ConfigType::UINT8,
             .valuePtr = &config.espnowChannel,
             .defaultPtr = &defaults.espnowChannel,
@@ -364,6 +376,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "espnowMaxPeers",
+            .category = "ESP-Now",
             .type = ConfigType::UINT8,
             .valuePtr = &config.espnowMaxPeers,
             .defaultPtr = &defaults.espnowMaxPeers,
@@ -374,6 +387,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "espnowHeartbeat",
+            .category = "ESP-Now",
             .type = ConfigType::UINT32,
             .valuePtr = &config.espnowHeartbeat,
             .defaultPtr = &defaults.espnowHeartbeat,
@@ -384,6 +398,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "espnowTimeout",
+            .category = "ESP-Now",
             .type = ConfigType::UINT32,
             .valuePtr = &config.espnowTimeout,
             .defaultPtr = &defaults.espnowTimeout,
@@ -394,6 +409,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "espnowPeerMac",
+            .category = "ESP-Now",
             .type = ConfigType::STRING,
             .valuePtr = &config.espnowPeerMac,
             .defaultPtr = &defaults.espnowPeerMac,
@@ -406,6 +422,7 @@ ConfigSchema UserConfig::buildSchema() {
         // Joystick
         {
             .key = "joyDeadzone",
+            .category = "Joystick",
             .type = ConfigType::UINT8,
             .valuePtr = &config.joyDeadzone,
             .defaultPtr = &defaults.joyDeadzone,
@@ -416,6 +433,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyUpdateInterval",
+            .category = "Joystick",
             .type = ConfigType::UINT16,
             .valuePtr = &config.joyUpdateInterval,
             .defaultPtr = &defaults.joyUpdateInterval,
@@ -426,6 +444,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyInvertX",
+            .category = "Joystick",
             .type = ConfigType::BOOL,
             .valuePtr = &config.joyInvertX,
             .defaultPtr = &defaults.joyInvertX,
@@ -436,6 +455,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyInvertY",
+            .category = "Joystick",
             .type = ConfigType::BOOL,
             .valuePtr = &config.joyInvertY,
             .defaultPtr = &defaults.joyInvertY,
@@ -448,6 +468,7 @@ ConfigSchema UserConfig::buildSchema() {
         // Joystick Kalibrierung
         {
             .key = "joyCalXMin",
+            .category = "Joystick",
             .type = ConfigType::INT16,
             .valuePtr = &config.joyCalXMin,
             .defaultPtr = &defaults.joyCalXMin,
@@ -458,6 +479,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyCalXCenter",
+            .category = "Joystick",
             .type = ConfigType::INT16,
             .valuePtr = &config.joyCalXCenter,
             .defaultPtr = &defaults.joyCalXCenter,
@@ -468,6 +490,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyCalXMax",
+            .category = "Joystick",
             .type = ConfigType::INT16,
             .valuePtr = &config.joyCalXMax,
             .defaultPtr = &defaults.joyCalXMax,
@@ -478,6 +501,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyCalYMin",
+            .category = "Joystick",
             .type = ConfigType::INT16,
             .valuePtr = &config.joyCalYMin,
             .defaultPtr = &defaults.joyCalYMin,
@@ -488,6 +512,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyCalYCenter",
+            .category = "Joystick",
             .type = ConfigType::INT16,
             .valuePtr = &config.joyCalYCenter,
             .defaultPtr = &defaults.joyCalYCenter,
@@ -498,6 +523,7 @@ ConfigSchema UserConfig::buildSchema() {
         },
         {
             .key = "joyCalYMax",
+            .category = "Joystick",
             .type = ConfigType::INT16,
             .valuePtr = &config.joyCalYMax,
             .defaultPtr = &defaults.joyCalYMax,
@@ -510,6 +536,7 @@ ConfigSchema UserConfig::buildSchema() {
         // Power
         {
             .key = "autoShutdownEnabled",
+            .category = "Power",
             .type = ConfigType::BOOL,
             .valuePtr = &config.autoShutdownEnabled,
             .defaultPtr = &defaults.autoShutdownEnabled,
@@ -522,6 +549,7 @@ ConfigSchema UserConfig::buildSchema() {
         // Debug
         {
             .key = "debugSerialEnabled",
+            .category = "Debug",
             .type = ConfigType::BOOL,
             .valuePtr = &config.debugSerialEnabled,
             .defaultPtr = &defaults.debugSerialEnabled,
@@ -532,12 +560,12 @@ ConfigSchema UserConfig::buildSchema() {
         }
     };
     
-    // Schema zurückgeben
-    ConfigSchema schema;
-    schema.items = items;
-    schema.count = sizeof(items) / sizeof(ConfigItem);
+    // Scheme zurückgeben
+    ConfigScheme scheme;
+    scheme.items = items;
+    scheme.count = sizeof(items) / sizeof(ConfigItem);
     
-    return schema;
+    return scheme;
 }
 
 void UserConfig::initDefaults() {

@@ -193,7 +193,7 @@ bool ConfigManager::saveToStorage(const String& content) {
 // JSON SERIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-bool ConfigManager::deserializeFromJson(const String& jsonString, const ConfigSchema& schema) {
+bool ConfigManager::deserializeFromJson(const String& jsonString, const ConfigScheme& scheme) {
     DEBUG_PRINTLN("ConfigManager: Deserialisiere JSON...");
     
     // JSON Document erstellen
@@ -207,8 +207,8 @@ bool ConfigManager::deserializeFromJson(const String& jsonString, const ConfigSc
     
     // Alle Schema-Items durchgehen
     int loaded = 0;
-    for (size_t i = 0; i < schema.count; i++) {
-        const ConfigItem& item = schema.items[i];
+    for (size_t i = 0; i < scheme.count; i++) {
+        const ConfigItem& item = scheme.items[i];
         
         // Key im JSON vorhanden?
         if (!doc.containsKey(item.key)) {
@@ -223,11 +223,11 @@ bool ConfigManager::deserializeFromJson(const String& jsonString, const ConfigSc
         }
     }
     
-    DEBUG_PRINTF("ConfigManager: ✅ %d/%d Werte geladen\n", loaded, schema.count);
+    DEBUG_PRINTF("ConfigManager: ✅ %d/%d Werte geladen\n", loaded, scheme.count);
     return (loaded > 0);
 }
 
-bool ConfigManager::serializeToJson(String& jsonString, const ConfigSchema& schema) {
+bool ConfigManager::serializeToJson(String& jsonString, const ConfigScheme& scheme) {
     DEBUG_PRINTLN("ConfigManager: Serialisiere zu JSON...");
     
     // JSON Document erstellen
@@ -237,8 +237,8 @@ bool ConfigManager::serializeToJson(String& jsonString, const ConfigSchema& sche
     char buffer[256];
     int saved = 0;
     
-    for (size_t i = 0; i < schema.count; i++) {
-        const ConfigItem& item = schema.items[i];
+    for (size_t i = 0; i < scheme.count; i++) {
+        const ConfigItem& item = scheme.items[i];
         
         // Wert als String holen
         if (getValueAsString(item, buffer, sizeof(buffer))) {
@@ -252,7 +252,7 @@ bool ConfigManager::serializeToJson(String& jsonString, const ConfigSchema& sche
     serializeJson(doc, jsonString);
     
     DEBUG_PRINTF("ConfigManager: ✅ %d/%d Werte serialisiert (%d Bytes)\n", 
-                 saved, schema.count, jsonString.length());
+                 saved, scheme.count, jsonString.length());
     
     return (saved > 0);
 }
@@ -261,14 +261,14 @@ bool ConfigManager::serializeToJson(String& jsonString, const ConfigSchema& sche
 // VALIDATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-bool ConfigManager::validate(const ConfigSchema& schema) {
+bool ConfigManager::validate(const ConfigScheme& scheme) {
     DEBUG_PRINTLN("ConfigManager: Validiere Config...");
     
     bool allValid = true;
     int corrected = 0;
     
-    for (size_t i = 0; i < schema.count; i++) {
-        const ConfigItem& item = schema.items[i];
+    for (size_t i = 0; i < scheme.count; i++) {
+        const ConfigItem& item = scheme.items[i];
         
         // Range-Check (falls definiert)
         if (item.hasRange) {
@@ -341,14 +341,14 @@ bool ConfigManager::validate(const ConfigSchema& schema) {
 // DEFAULTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-void ConfigManager::loadDefaults(const ConfigSchema& schema) {
+void ConfigManager::loadDefaults(const ConfigScheme& scheme) {
     DEBUG_PRINTLN("ConfigManager: Lade Defaults...");
     
-    for (size_t i = 0; i < schema.count; i++) {
-        resetToDefault(schema.items[i]);
+    for (size_t i = 0; i < scheme.count; i++) {
+        resetToDefault(scheme.items[i]);
     }
     
-    DEBUG_PRINTF("ConfigManager: ✅ %d Defaults geladen\n", schema.count);
+    DEBUG_PRINTF("ConfigManager: ✅ %d Defaults geladen\n", scheme.count);
 }
 
 void ConfigManager::resetToDefault(const ConfigItem& item) {
