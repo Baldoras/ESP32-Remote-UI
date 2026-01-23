@@ -37,10 +37,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #define ESPNOW_MAX_PEERS          1                   // Maximale Anzahl Peers
-#define ESPNOW_CHANNEL            0                   // WiFi-Kanal (0 = auto)
+#define ESPNOW_CHANNEL            2                   // WiFi-Kanal (0 = auto)
 #define ESPNOW_HEARTBEAT_INTERVAL 500                 // Heartbeat alle 500ms
-#define ESPNOW_TIMEOUT            2000                // Verbindungs-Timeout 2s
-#define ESPNOW_PEER_MAC           "11:22:33:44:55:66" // Peer device MAC
+#define ESPNOW_TIMEOUT            30000               // Verbindungs-Timeout 2s
+#define ESPNOW_PEER_MAC           "98:A3:16:EB:30:D8" // Peer device MAC
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🕹️ JOYSTICK BENUTZER-EINSTELLUNGEN
