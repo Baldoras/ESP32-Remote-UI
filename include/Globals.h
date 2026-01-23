@@ -19,7 +19,7 @@ class LogHandler;
 class TouchManager;
 class UserConfig;
 class PowerManager;
-class ESPNowManager;
+class ESPNowRemoteController;
 
 // Globale Objekte (extern)
 extern DisplayHandler display;
@@ -30,7 +30,7 @@ extern LogHandler logger;
 extern TouchManager touch;
 extern UserConfig userConfig;
 extern PowerManager powerMgr;
-extern ESPNowManager espNow;
+extern ESPNowRemoteController espNow;
 
 // PageManager als Pointer (wird in setup() erstellt)
 extern PageManager* pageManager;

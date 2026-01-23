@@ -11,7 +11,7 @@
 #include "include/BatteryMonitor.h"
 #include "include/TouchManager.h"
 #include "include/SDCardHandler.h"
-#include "include/ESPNowManager.h"
+#include "include/ESPNowRemoteController.h"
 #include "include/JoystickHandler.h"
 #include "include/Globals.h"
 #include <ESP.h>

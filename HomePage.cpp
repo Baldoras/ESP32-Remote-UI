@@ -9,7 +9,7 @@
 #include "include/UILabel.h"
 #include "include/PageManager.h"
 #include "include/BatteryMonitor.h"
-#include "include/ESPNowManager.h"
+#include "include/ESPNowRemoteController.h"
 #include "include/Globals.h"
 
 HomePage::HomePage(UIManager* ui, TFT_eSPI* tft) 

@@ -25,7 +25,9 @@ public:
 private:
     void updateConnectionStatus();
     void checkPairingTimeout();
+    void checkEventHandler();    // Registriert Event-Handler
     void onPairClicked();
+    void sendPairRequest();  // Sendet PAIR_REQUEST (mit Retry-Logik)
     void onDisconnectClicked();
     
     char peerMacStr[18];
@@ -36,6 +38,13 @@ private:
     // Pairing-Timeout
     unsigned long pairingTimestamp;
     const unsigned long pairingTimeout;  // 30 Sekunden
+    
+    // Pairing-Retry Mechanismus
+    unsigned long lastPairRequestTime;   // Letzte PAIR_REQUEST Sendung
+    uint8_t pairRequestCount;            // Anzahl gesendeter Requests
+    const unsigned long pairRequestInterval = 5000;  // 5 Sekunden
+    const uint8_t maxPairRequests = 5;   // Maximal 5 Versuche
+    bool isPairing;                      // Pairing aktiv?
     
     UILabel* labelStatusValue;
     UILabel* labelOwnMacValue;

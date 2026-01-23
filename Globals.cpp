@@ -18,7 +18,7 @@
 #include "include/TouchManager.h"
 #include "include/UserConfig.h"
 #include "include/PowerManager.h"
-#include "include/ESPNowManager.h"
+#include "include/ESPNowRemoteController.h"
 
 // Globale Instanzen
 DisplayHandler display;
@@ -29,7 +29,7 @@ LogHandler logger(nullptr, LOG_INFO);  // Startet ohne SD, nur Serial, Level INF
 TouchManager touch;
 UserConfig userConfig;
 PowerManager powerMgr;
-ESPNowManager espNow;
+ESPNowRemoteController espNow;
 
 // PageManager als Pointer (wird in setup() erstellt)
 PageManager* pageManager = nullptr;

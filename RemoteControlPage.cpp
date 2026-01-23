@@ -9,7 +9,7 @@
 #include "include/UILabel.h"
 #include "include/UIProgressBar.h"
 #include "include/PageManager.h"
-#include "include/ESPNowManager.h"
+#include "include/ESPNowRemoteController.h"
 #include "include/Globals.h"
 
 RemoteControlPage::RemoteControlPage(UIManager* ui, TFT_eSPI* tft)
@@ -109,7 +109,7 @@ void RemoteControlPage::update() {
     
     // Joystick
     static int16_t lastJoyX = 0, lastJoyY = 0;
-    if (joystickX != lastJoyX || joystickY != lastJoyY) {
+    //if (joystickX != lastJoyX || joystickY != lastJoyY) {
 
         drawJoystickPosition();
                     
@@ -121,7 +121,7 @@ void RemoteControlPage::update() {
         labelJoystickX->setText(buffer);
         sprintf(buffer, "Y: %d", joystickY);
         labelJoystickY->setText(buffer);
-    }
+    //}
 }
 
 void RemoteControlPage::setJoystickPosition(int16_t x, int16_t y) {
@@ -136,17 +136,18 @@ void RemoteControlPage::drawJoystickPosition() {
         return;
     }
 
-    tft->fillRect(joystickAreaX, joystickAreaY, joystickAreaSize, joystickAreaSize, COLOR_BLACK);
+    tft->fillRect(joystickAreaX, joystickAreaY, joystickAreaSize + 5, joystickAreaSize + 5, COLOR_BLACK);
 
-    int16_t radius = joystickAreaSize / 2 - 5;
+    int16_t radius = joystickAreaSize / 2 - 8;
     tft->drawCircle(joystickCenterX, joystickCenterY, radius, COLOR_WHITE);
-    tft->drawLine(joystickCenterX - 10, joystickCenterY, joystickCenterX + 10, joystickCenterY, COLOR_GRAY);
-    tft->drawLine(joystickCenterX, joystickCenterY - 10, joystickCenterX, joystickCenterY + 10, COLOR_GRAY);
+    tft->drawCircle(joystickCenterX, joystickCenterY, radius + 1, COLOR_WHITE);
+    tft->drawLine(joystickCenterX - 20, joystickCenterY, joystickCenterX + 20, joystickCenterY, COLOR_GRAY);
+    tft->drawLine(joystickCenterX, joystickCenterY - 20, joystickCenterX, joystickCenterY + 20, COLOR_GRAY);
 
     int16_t posX = joystickCenterX + (joystickX * radius) / 100;
     int16_t posY = joystickCenterY - (joystickY * radius) / 100;
     
-    tft->fillCircle(posX + 1, posY + 1, 8, COLOR_DARKGRAY);
+    tft->fillCircle(posX, posY, 8, COLOR_DARKGRAY);
     tft->fillCircle(posX, posY, 8, COLOR_BLUE);
-    tft->fillCircle(posX - 2, posY - 2, 3, COLOR_CYAN);
+    tft->fillCircle(posX - 0, posY - 0, 3, COLOR_CYAN);
 }

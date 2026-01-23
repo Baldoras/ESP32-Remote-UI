@@ -19,7 +19,7 @@
 #include "include/JoystickHandler.h"
 #include "include/UIManager.h"
 #include "include/PageManager.h"
-#include "include/ESPNowManager.h"
+#include "include/ESPNowRemoteController.h"
 #include "include/UserConfig.h"
 #include "include/userConf.h"
 #include "include/Globals.h"
@@ -36,6 +36,7 @@ unsigned long lastBatteryLog = 0;
 unsigned long lastConnectionLog = 0;
 unsigned long setupStartTime = 0;
 unsigned long lastTouchUpdate = 0;
+unsigned long lastJoystickSend = 0;
 unsigned long lastLoopStart = 0;
 
 void setup() {
@@ -350,26 +351,29 @@ void loop() {
     // Joystick auslesen und via ESP-NOW senden
     // ═══════════════════════════════════════════════════════════════
 
-    if (joystick.update()) {
-        int16_t joyX = joystick.getX();
-        int16_t joyY = joystick.getY();
-        
-        // An RemoteControlPage senden (über PageManager - entkoppelt)
-        pageManager->updateJoystick(joyX, joyY);
-        
-        // Via ESP-NOW senden
-        if (espNow.isConnected()) {
-            ESPNowPacket packet;
-            packet.begin(MainCmd::DATA_REQUEST)
-                  .addInt16(DataCmd::JOYSTICK_X, joyX)
-                  .addInt16(DataCmd::JOYSTICK_Y, joyY);
-            
-            uint8_t peerMac[6];
-            if (ESPNowManager::stringToMac(userConfig.getEspnowPeerMac(), peerMac)) {
-                espNow.send(peerMac, packet);
-            }
+    joystick.update();
+
+    int16_t joyX = joystick.getX();
+    int16_t joyY = joystick.getY();
+    bool joyBtn = false; //joystick.isPressed();
+    
+    if (joystick.isNeutral()) {
+        joyX = 0;
+        joyY = 0;
+    }
+
+    // An RemoteControlPage senden (über PageManager - entkoppelt)
+    pageManager->updateJoystick(joyX, joyY);
+    
+    // Via ESP-NOW senden (High-Level API)
+    if (espNow.isConnected() && lastLoopStart - lastJoystickSend > 100) {
+        uint8_t peerMac[6];
+        if (ESPNowRemoteController::stringToMac(userConfig.getEspnowPeerMac(), peerMac)) {
+            espNow.sendJoystick(peerMac, joyX, joyY, joyBtn);
+            lastJoystickSend = lastLoopStart;
         }
     }
+    
 
     // ═══════════════════════════════════════════════════════════════
     // ESP-NOW

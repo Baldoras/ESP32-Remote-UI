@@ -8,7 +8,7 @@
 #include "include/UIButton.h"
 #include "include/UILabel.h"
 #include "include/PageManager.h"
-#include "include/ESPNowManager.h"
+#include "include/ESPNowRemoteController.h"
 #include "include/SDCardHandler.h"
 #include "include/LogHandler.h"
 #include "include/Globals.h"
@@ -19,6 +19,9 @@ ConnectionPage::ConnectionPage(UIManager* ui, TFT_eSPI* tft)
     , isConnected(false)
     , pairingTimestamp(0)
     , pairingTimeout(30000)  // 30 Sekunden
+    , lastPairRequestTime(0)
+    , pairRequestCount(0)
+    , isPairing(false)
     , labelStatusValue(nullptr)
     , labelOwnMacValue(nullptr)
     , labelPeerMacValue(nullptr)
@@ -120,12 +123,25 @@ void ConnectionPage::build() {
 void ConnectionPage::update() {
     updateConnectionStatus();
     checkPairingTimeout();
+    sendPairRequest();  // Retry-Mechanismus
+    checkEventHandler();  // Event-Handler registrieren
 }
 
 void ConnectionPage::checkPairingTimeout() {
+    // Wenn connected, dann Pairing komplett abbrechen
+    if (isConnected) {
+        if (isPairing || pairingTimestamp != 0) {
+            Serial.println("ConnectionPage: Verbindung connected - Pairing abgeschlossen");
+            isPairing = false;
+            pairingTimestamp = 0;
+            pairRequestCount = 0;
+        }
+        return;
+    }
+    
     // Nur prüfen wenn gepaired aber nicht connected
-    if (!isPaired || isConnected) {
-        pairingTimestamp = 0;  // Reset bei Verbindung
+    if (!isPaired) {
+        pairingTimestamp = 0;  // Reset wenn nicht gepaired
         return;
     }
     
@@ -144,6 +160,8 @@ void ConnectionPage::checkPairingTimeout() {
         if (espNow.isInitialized() && espNow.removePeer(peerMac)) {
             // isPaired wird in updateConnectionStatus() ermittelt
             pairingTimestamp = 0;
+            isPairing = false;
+            pairRequestCount = 0;
             
             logger.logConnection(peerMacStr, "pairing_timeout");
             
@@ -159,7 +177,7 @@ void ConnectionPage::setPeerMac(const char* macStr) {
     // Nur Daten speichern - Label wird in build() initialisiert
     strncpy(peerMacStr, macStr, sizeof(peerMacStr) - 1);
     peerMacStr[sizeof(peerMacStr) - 1] = '\0';
-    ESPNowManager::stringToMac(macStr, peerMac);
+    ESPNowRemoteController::stringToMac(macStr, peerMac);
     
     Serial.printf("ConnectionPage: Peer MAC gespeichert: %s\n", peerMacStr);
 }
@@ -226,11 +244,15 @@ void ConnectionPage::onPairClicked() {
     
     if (espNow.isInitialized() && espNow.addPeer(peerMac)) {
         Serial.println("  Peer added");
-        // isPaired wird in updateConnectionStatus() über hasPeer() ermittelt
-        pairingTimestamp = millis();  // Timeout-Timer starten
-        updateConnectionStatus();  // Sofortiges UI-Update
         
-        logger.logConnection(peerMacStr, "paired");
+        // Pairing-Prozess starten
+        isPairing = true;
+        pairRequestCount = 0;
+        lastPairRequestTime = 0;  // Sofort senden
+        pairingTimestamp = millis();  // Timeout-Timer starten
+        
+        updateConnectionStatus();  // Sofortiges UI-Update
+        logger.logConnection(peerMacStr, "pairing_started");
     } else {
         Serial.println("  Add peer failed");
     }
@@ -246,5 +268,58 @@ void ConnectionPage::onDisconnectClicked() {
         updateConnectionStatus();  // Sofortiges UI-Update
     } else {
         Serial.println("  Remove peer failed");
+    }
+}
+void ConnectionPage::sendPairRequest() {
+    // Nur senden wenn Pairing aktiv und noch nicht verbunden
+    if (!isPairing || isConnected) {
+        return;
+    }
+
+    // Maximale Versuche erreicht?
+    if (pairRequestCount >= maxPairRequests) {
+        Serial.printf("ConnectionPage: Max PAIR_REQUEST Versuche (%d) erreicht - gebe auf\n", maxPairRequests);
+        isPairing = false;
+        logger.logConnection(peerMacStr, "pairing_failed_max_retries");
+        return;
+    }
+    
+    // Intervall-Check (5 Sekunden)
+    unsigned long now = millis();
+    if (now - lastPairRequestTime < pairRequestInterval) {
+        return;  // Noch nicht Zeit für nächsten Versuch
+    }
+    
+    // PAIR_REQUEST senden
+    ESPNowPacket pairPacket;
+    pairPacket.begin(MainCmd::PAIR_REQUEST);
+    
+    if (espNow.send(peerMac, pairPacket)) {
+        DEBUG_PRINTLN("SEND PAIR REQUEST");
+        pairRequestCount++;
+        lastPairRequestTime = now;
+        Serial.printf("ConnectionPage: PAIR_REQUEST gesendet (%d/%d)\n", 
+                     pairRequestCount, maxPairRequests);
+    } else {
+        Serial.println("ConnectionPage: PAIR_REQUEST senden fehlgeschlagen");
+    }
+}
+
+void ConnectionPage::checkEventHandler() {
+    static bool handlerRegistered = false;
+    
+    if (!handlerRegistered) {
+        // Event-Handler für PEER_CONNECTED registrieren (einmalig)
+        espNow.onEvent(ESPNowEvent::PEER_CONNECTED, [this](ESPNowEventData* data) {
+            // Pairing erfolgreich - stoppe Retry-Mechanismus
+            if (this->isPairing) {
+                Serial.println("ConnectionPage: PAIR_RESPONSE empfangen - Pairing erfolgreich!");
+                this->isPairing = false;
+                this->pairRequestCount = 0;
+                logger.logConnection(this->peerMacStr, "paired_success");
+            }
+        });
+        handlerRegistered = true;
+        Serial.println("ConnectionPage: Event-Handler registriert");
     }
 }
