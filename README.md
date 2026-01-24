@@ -2,7 +2,7 @@
 
 **Dieses Projekt ist in Bearbeitung (WIP)**
 
-**Das Projekt läuft mit ESP32 core 3.3.3+, das nach derzeitigem stand nur von der Arduino-IDE unterstützt wird!**
+**Das Projekt läuft mit ESP32 Core 3.3.3+, das nach derzeitigem Stand nur von der Arduino-IDE unterstützt wird!**
 
 
 **Professionelle Fernsteuerung für Kettenfahrwerke mit ESP-NOW, Touch-Display und SD-Logging**
